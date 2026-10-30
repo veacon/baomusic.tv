@@ -1,0 +1,27 @@
+// Top-level build file — native Android TV (Kotlin + Compose for TV), no React Native.
+buildscript {
+    ext {
+        buildToolsVersion = "36.0.0"
+        minSdkVersion = 23
+        compileSdkVersion = 36
+        targetSdkVersion = 34
+        kotlinVersion = "1.9.24"
+        composeCompilerVersion = "1.5.14"
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle:8.6.1")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
+        classpath("org.jetbrains.kotlin:kotlin-serialization:$kotlinVersion")
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}

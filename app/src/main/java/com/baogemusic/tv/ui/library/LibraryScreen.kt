@@ -1,0 +1,862 @@
+package com.baogemusic.tv.ui.library
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items as lazyItems
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.tv.material3.Icon
+import androidx.tv.material3.Text
+import com.baogemusic.tv.data.model.Playlist
+import com.baogemusic.tv.ui.appContainer
+import com.baogemusic.tv.ui.components.Artwork
+import com.baogemusic.tv.ui.components.EmptyHint
+import com.baogemusic.tv.ui.components.TrackList
+import com.baogemusic.tv.ui.components.TvFocusable
+import com.baogemusic.tv.ui.components.TvPill
+import com.baogemusic.tv.ui.playList
+import com.baogemusic.tv.ui.theme.AppColors
+import kotlinx.coroutines.launch
+
+/**
+ * 「我的列表」screen. Two top tabs:
+ *  - 我的收藏: a grid of playlists ("我喜欢的" + user-created) + a 新建歌单 card.
+ *    Tap a playlist to slide into its detail (track list + 播放全部 / 删除歌单 controls).
+ *  - 播放历史: flat track list of the most-recently-played songs.
+ */
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+fun LibraryScreen(onOpenPlayer: () -> Unit, modifier: Modifier = Modifier) {
+    val scope = rememberCoroutineScope()
+    val love by appContainer.libraryStore.love.collectAsState()
+    val history by appContainer.libraryStore.history.collectAsState()
+    val userLists by appContainer.libraryStore.userLists.collectAsState()
+
+    var tab by remember { mutableStateOf(TAB_FAVORITES) }
+    var showLocalImport by remember { mutableStateOf(false) }
+    var showSonglistImport by remember { mutableStateOf(false) }
+    val downloadStore = appContainer.downloadStore
+    val downloadFolders by downloadStore.folders.collectAsState()
+    val downloadRecords by downloadStore.records.collectAsState()
+    val downloadProgress by downloadStore.progress.collectAsState()
+    var detailId by remember { mutableStateOf<String?>(null) }
+    var showCreate by remember { mutableStateOf(false) }
+    // 卡片列数（设置 → 外观 → 歌单列数）
+    val gridColumns by remember {
+        appContainer.settingsStore.settings.map { it.gridColumns }.distinctUntilChanged()
+    }.collectAsState(initial = 5)
+
+    // Per-tab FocusRequester so D-pad Up from the lower area lands on the *active* tab,
+    // not some other geometric candidate. Reused across recompositions.
+    val tabFocus = remember {
+        mapOf(
+            TAB_FAVORITES to FocusRequester(),
+            TAB_HISTORY to FocusRequester(),
+            TAB_DOWNLOADED to FocusRequester(),
+        )
+    }
+    val activeTabFocus = tabFocus[tab] ?: tabFocus[TAB_FAVORITES]!!
+
+    // Back closes the playlist detail; otherwise falls through to the parent (which jumps to
+    // Recommend / shows the exit dialog).
+    BackHandler(enabled = detailId != null) { detailId = null }
+
+    Column(modifier = modifier.fillMaxSize().padding(top = 8.dp)) {
+        // Tab row — 4dp outer padding gives the 1.06x focus-scale + 2dp border somewhere
+        // to grow without clipping at the screen edge.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 4.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            TvPill(
+                onClick = { tab = TAB_FAVORITES; detailId = null },
+                selected = tab == TAB_FAVORITES,
+                focusRequester = tabFocus[TAB_FAVORITES],
+            ) {
+                Text("我的收藏 (${1 + userLists.size})", fontSize = 13.sp)
+            }
+            TvPill(
+                onClick = { tab = TAB_HISTORY; detailId = null },
+                selected = tab == TAB_HISTORY,
+                focusRequester = tabFocus[TAB_HISTORY],
+            ) {
+                Text("播放历史 (${history.tracks.size})", fontSize = 13.sp)
+            }
+            TvPill(
+                onClick = { tab = TAB_DOWNLOADED; detailId = null },
+                selected = tab == TAB_DOWNLOADED,
+                focusRequester = tabFocus[TAB_DOWNLOADED],
+            ) {
+                Text("已下载 (${downloadStore.completedCount})", fontSize = 13.sp)
+            }
+            TvPill(
+                onClick = { showSonglistImport = true },
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 7.dp),
+            ) {
+                Text("+ 导入歌单", fontSize = 12.sp)
+            }
+            TvPill(
+                onClick = { showLocalImport = true },
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 7.dp),
+            ) {
+                Text("+ 导入本地", fontSize = 12.sp)
+            }
+        }
+        Spacer(Modifier.padding(top = 6.dp))
+
+        when (tab) {
+            TAB_HISTORY -> HistoryTab(
+                history = history,
+                onClear = { scope.launch { appContainer.libraryStore.clearHistory() } },
+                onOpenPlayer = onOpenPlayer,
+                upFocus = activeTabFocus,
+            )
+            TAB_FAVORITES -> {
+                val detail = detailId?.let { id -> (listOf(love) + userLists).firstOrNull { it.id == id } }
+                if (detail == null) {
+                    PlaylistGrid(
+                        playlists = listOf(love) + userLists,
+                        onPick = { detailId = it.id },
+                        onCreate = { showCreate = true },
+                        upFocus = activeTabFocus,
+                        columns = gridColumns,
+                    )
+                } else {
+                    PlaylistDetailPane(
+                        playlist = detail,
+                        onBack = { detailId = null },
+                        onOpenPlayer = onOpenPlayer,
+                        onDelete = if (detail.id != Playlist.LOVE) {
+                            {
+                                scope.launch { appContainer.libraryStore.deleteList(detail.id) }
+                                detailId = null
+                            }
+                        } else null,
+                    )
+                }
+            }
+            TAB_DOWNLOADED -> DownloadedTab(
+                folders = downloadFolders,
+                records = downloadRecords,
+                progress = downloadProgress,
+                onPlay = { tracks, idx ->
+                    com.baogemusic.tv.ui.playList(tracks, idx)
+                    onOpenPlayer()
+                },
+                upFocus = activeTabFocus,
+            )
+        }
+    }
+
+    if (showLocalImport) {
+        com.baogemusic.tv.ui.components.LocalImportDialog(onDismiss = { showLocalImport = false })
+    }
+    if (showSonglistImport) {
+        com.baogemusic.tv.ui.components.SonglistImportDialog(onDismiss = { showSonglistImport = false })
+    }
+
+    if (showCreate) {
+        com.baogemusic.tv.ui.components.PlaylistNameDialog(
+            initial = "",
+            title = "新建歌单",
+            onDismiss = { showCreate = false },
+            onConfirm = { name ->
+                scope.launch { appContainer.libraryStore.createList(name) }
+                showCreate = false
+            },
+        )
+    }
+}
+
+private const val TAB_FAVORITES = "fav"
+private const val TAB_HISTORY = "history"
+private const val TAB_DOWNLOADED = "downloaded"
+
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun HistoryTab(
+    history: Playlist,
+    onClear: () -> Unit,
+    onOpenPlayer: () -> Unit,
+    upFocus: FocusRequester,
+) {
+    val scope = rememberCoroutineScope()
+    val clearFocus = remember { FocusRequester() }
+    var confirmClear by remember { mutableStateOf(false) }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(history.name, fontSize = 18.sp, color = AppColors.TextPrimary)
+        Spacer(Modifier.width(12.dp))
+        if (history.tracks.isNotEmpty()) ListActionHint()
+        Spacer(Modifier.weight(1f))
+        if (history.tracks.isNotEmpty()) {
+            TvPill(
+                onClick = { confirmClear = true },
+                accent = AppColors.Danger,
+                focusRequester = clearFocus,
+                modifier = Modifier.focusProperties { up = upFocus },
+            ) { Text("清空", fontSize = 12.sp) }
+        }
+    }
+    if (history.tracks.isEmpty()) {
+        EmptyHint("列表为空", Modifier.fillMaxSize())
+    } else {
+        val nowId = appContainer.playbackController.state.collectAsState().value.currentTrack?.id
+        TrackList(
+            history.tracks,
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight()
+                .focusProperties {
+                    // Up from the first row → 清空 (it sits right above the list), not the tabs.
+                    exit = { dir -> if (dir == FocusDirection.Up) clearFocus else FocusRequester.Default }
+                },
+            nowPlayingId = nowId,
+            showDownloadedBadge = true,
+            onRemove = { t -> scope.launch { appContainer.libraryStore.removeFromHistory(t.id) } },
+            removeLabel = "从播放历史删除",
+        ) { idx ->
+            playList(history.tracks, idx); onOpenPlayer()
+        }
+    }
+    if (confirmClear) {
+        com.baogemusic.tv.ui.components.ConfirmDialog(
+            title = "清空播放历史",
+            message = "确定清空全部 ${history.tracks.size} 条播放历史吗？",
+            confirmLabel = "清空",
+            onCancel = { confirmClear = false },
+            onConfirm = {
+                confirmClear = false
+                onClear()
+            },
+        )
+    }
+}
+
+/** 列表顶部的一行操作提示：行尾按钮。 */
+@Composable
+private fun ListActionHint() {
+    Text(
+        "选中歌曲后按右键可「下载 / 添加到歌单 / 删除」",
+        color = AppColors.TextMuted,
+        fontSize = 11.sp,
+    )
+}
+
+/** 4-column responsive grid of playlist covers + a "+ 新建歌单" tile at the end. */
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun PlaylistGrid(
+    playlists: List<Playlist>,
+    onPick: (Playlist) -> Unit,
+    onCreate: () -> Unit,
+    upFocus: FocusRequester,
+    columns: Int = 5,
+) {
+    val compact = columns >= 6
+    val gap = if (compact) 8.dp else 12.dp
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(columns),
+        horizontalArrangement = Arrangement.spacedBy(gap),
+        verticalArrangement = Arrangement.spacedBy(gap),
+        contentPadding = PaddingValues(vertical = 6.dp, horizontal = 4.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .focusProperties {
+                exit = { dir -> if (dir == FocusDirection.Up) upFocus else FocusRequester.Default }
+            },
+    ) {
+        items(playlists, key = { it.id }) { p ->
+            PlaylistCard(p, compact = compact, onClick = { onPick(p) })
+        }
+        item { CreatePlaylistCard(compact = compact, onClick = onCreate) }
+    }
+}
+
+@Composable
+private fun PlaylistCard(playlist: Playlist, compact: Boolean, onClick: () -> Unit) {
+    val pad = if (compact) 5.dp else 8.dp
+    val titleSp = if (compact) 11.sp else 13.sp
+    val subSp = if (compact) 9.sp else 11.sp
+    val gap = if (compact) 4.dp else 8.dp
+    TvFocusable(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(pad)) {
+            CoverMosaic(
+                urls = playlist.tracks.take(4).map { it.picURL },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(if (compact) 7.dp else 10.dp)),
+            )
+            Spacer(Modifier.padding(top = gap))
+            Text(
+                playlist.name,
+                color = AppColors.TextPrimary,
+                fontSize = titleSp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                "${playlist.tracks.size} 首",
+                color = AppColors.TextMuted,
+                fontSize = subSp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CreatePlaylistCard(compact: Boolean, onClick: () -> Unit) {
+    val pad = if (compact) 5.dp else 8.dp
+    TvFocusable(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(pad)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(if (compact) 7.dp else 10.dp))
+                    .background(AppColors.AccentGreenDim),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Filled.Add,
+                    contentDescription = "新建歌单",
+                    tint = AppColors.AccentGreen,
+                    modifier = Modifier.size(if (compact) 28.dp else 40.dp),
+                )
+            }
+            Spacer(Modifier.padding(top = if (compact) 4.dp else 8.dp))
+            Text(
+                "新建歌单",
+                color = AppColors.AccentGreen,
+                fontSize = if (compact) 11.sp else 13.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text("自定义名称", color = AppColors.TextMuted, fontSize = if (compact) 9.sp else 11.sp)
+        }
+    }
+}
+
+/** 2x2 mosaic of up to 4 covers (or a single image when only 1 is available, or a fallback when
+ *  none). Reuses [Artwork] for each cell so loading + placeholder behaviour stays consistent. */
+@Composable
+private fun CoverMosaic(urls: List<String?>, modifier: Modifier = Modifier) {
+    Box(modifier = modifier.background(Color(0x14FFFFFF))) {
+        val cleaned = urls.filterNotNull().filter { it.isNotEmpty() }
+        when (cleaned.size) {
+            0 -> Artwork(null, modifier = Modifier.fillMaxSize(), shape = RoundedCornerShape(0.dp))
+            1 -> Artwork(cleaned[0], modifier = Modifier.fillMaxSize(), shape = RoundedCornerShape(0.dp))
+            else -> {
+                // We always render a 2x2 grid for 2/3/4 covers; missing cells get a null artwork.
+                val padded = (cleaned + List(4) { null }).take(4)
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                        Artwork(padded[0], modifier = Modifier.weight(1f).fillMaxHeight(), shape = RoundedCornerShape(0.dp))
+                        Artwork(padded[1], modifier = Modifier.weight(1f).fillMaxHeight(), shape = RoundedCornerShape(0.dp))
+                    }
+                    Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                        Artwork(padded[2], modifier = Modifier.weight(1f).fillMaxHeight(), shape = RoundedCornerShape(0.dp))
+                        Artwork(padded[3], modifier = Modifier.weight(1f).fillMaxHeight(), shape = RoundedCornerShape(0.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Detail view shown when a playlist is tapped: header (mosaic + name + actions) + TrackList. */
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun PlaylistDetailPane(
+    playlist: Playlist,
+    onBack: () -> Unit,
+    onOpenPlayer: () -> Unit,
+    onDelete: (() -> Unit)?,
+) {
+    val playFocus = remember { FocusRequester() }
+    LaunchedEffect(playlist.id) { runCatching { playFocus.requestFocus() } }
+    var showBatchDownload by remember { mutableStateOf(false) }
+    val refreshingIds by com.baogemusic.tv.playback.imports.SonglistImporter.refreshing.collectAsState()
+    val refreshing = playlist.id in refreshingIds
+    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    val scope = rememberCoroutineScope()
+    val rescanProgress by com.baogemusic.tv.playback.local.LocalPlaylistRescan.progress.collectAsState()
+    val scanning = rescanProgress[playlist.id]
+    val canRescan = remember(playlist.tracks) {
+        com.baogemusic.tv.playback.local.LocalPlaylistRescan
+            .rescannableFolders(playlist, appContainer.localMusicStore).isNotEmpty()
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 12.dp)) {
+            CoverMosaic(
+                urls = playlist.tracks.take(4).map { it.picURL },
+                modifier = Modifier.size(96.dp).clip(RoundedCornerShape(12.dp)),
+            )
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(playlist.name, color = AppColors.TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("${playlist.tracks.size} 首", color = AppColors.TextMuted, fontSize = 12.sp)
+                    if (playlist.tracks.isNotEmpty()) {
+                        Spacer(Modifier.width(12.dp))
+                        ListActionHint()
+                    }
+                }
+                Spacer(Modifier.padding(top = 6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TvPill(
+                        onClick = {
+                            if (playlist.tracks.isNotEmpty()) {
+                                playList(playlist.tracks, 0); onOpenPlayer()
+                            }
+                        },
+                        selected = playlist.tracks.isNotEmpty(),
+                        focusRequester = playFocus,
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 7.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("播放全部", fontSize = 12.sp)
+                        }
+                    }
+                    if (playlist.tracks.isNotEmpty()) {
+                        TvPill(
+                            onClick = { showBatchDownload = true },
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 7.dp),
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Filled.Download,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text("下载全部", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                    if (playlist.origin != null) {
+                        TvPill(
+                            onClick = {
+                                // App-scoped so leaving the page doesn't cancel it; toast uses the
+                                // app context since the page may be gone by the time it finishes.
+                                com.baogemusic.tv.playback.imports.SonglistImporter.startRefresh(
+                                    playlist = playlist,
+                                    songlists = appContainer.songlists,
+                                    library = appContainer.libraryStore,
+                                    scope = appContainer.appScope,
+                                ) { msg ->
+                                    android.widget.Toast.makeText(appContext, msg, android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 7.dp),
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text(if (refreshing) "更新中…" else "更新歌单", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                    if (canRescan) {
+                        TvPill(
+                            onClick = {
+                                // App-scoped like 更新歌单: leaving the page doesn't abort the scan.
+                                com.baogemusic.tv.playback.local.LocalPlaylistRescan.start(
+                                    playlist = playlist,
+                                    local = appContainer.localMusicStore,
+                                    library = appContainer.libraryStore,
+                                    scope = appContainer.appScope,
+                                ) { msg ->
+                                    android.widget.Toast.makeText(appContext, msg, android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 7.dp),
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Filled.FolderOpen, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    if (scanning != null) "扫描中 ${(scanning * 100).toInt()}%" else "重新扫描",
+                                    fontSize = 12.sp,
+                                )
+                            }
+                        }
+                    }
+                    TvPill(onClick = onBack, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 7.dp)) {
+                        Text("返回", fontSize = 12.sp)
+                    }
+                    if (onDelete != null) {
+                        TvPill(
+                            onClick = onDelete,
+                            accent = AppColors.Danger,
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 7.dp),
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("删除歌单", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (playlist.tracks.isEmpty()) {
+            EmptyHint("歌单为空", Modifier.fillMaxSize())
+        } else {
+            val nowId = appContainer.playbackController.state.collectAsState().value.currentTrack?.id
+            TrackList(
+                playlist.tracks,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight()
+                    .focusProperties {
+                        exit = { dir -> if (dir == FocusDirection.Up) playFocus else FocusRequester.Default }
+                    },
+                nowPlayingId = nowId,
+                showDownloadedBadge = true,
+                onRemove = { t ->
+                    scope.launch {
+                        if (playlist.id == Playlist.LOVE) appContainer.libraryStore.toggleFavorite(t)
+                        else appContainer.libraryStore.removeFromList(playlist.id, t.id)
+                    }
+                },
+                removeLabel = "从歌单移除",
+            ) { idx ->
+                playList(playlist.tracks, idx); onOpenPlayer()
+            }
+        }
+    }
+
+    if (showBatchDownload) {
+        com.baogemusic.tv.ui.components.BatchDownloadDialog(
+            playlistName = playlist.name,
+            tracks = playlist.tracks,
+            onDismiss = { showBatchDownload = false },
+        )
+    }
+}
+
+/**
+ * Downloaded-songs tab: per-folder sections (default "默认" + any user-created), each shows a
+ * TrackList of completed records belonging to that folder. Active downloads (in progress + failed)
+ * surface at the top so the user sees the running progress + can retry/cancel without hunting.
+ */
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun DownloadedTab(
+    folders: List<com.baogemusic.tv.data.model.DownloadFolder>,
+    records: Map<String, com.baogemusic.tv.data.model.DownloadRecord>,
+    progress: Map<String, Float>,
+    onPlay: (List<com.baogemusic.tv.data.model.Track>, Int) -> Unit,
+    upFocus: FocusRequester,
+) {
+    val active = records.values.filter { it.status == com.baogemusic.tv.data.model.DownloadStatus.DOWNLOADING }
+    val failed = records.values.filter { it.status == com.baogemusic.tv.data.model.DownloadStatus.FAILED }
+    // Hoisted out of the LazyColumn body (LazyListScope is not @Composable, so collectAsState
+    // can't be called inside it).
+    val nowId = appContainer.playbackController.state.collectAsState().value.currentTrack?.id
+    // COMPLETED downloads whose file is gone — stay listed here but flagged 文件缺失 + retry.
+    val missing by appContainer.downloadStore.missingDownloads.collectAsState()
+    var pickerTrack by remember { mutableStateOf<com.baogemusic.tv.data.model.Track?>(null) }
+    var confirmDelete by remember { mutableStateOf<com.baogemusic.tv.data.model.Track?>(null) }
+
+    androidx.compose.foundation.lazy.LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            // focusRestorer remembers which row was last focused; when the user opens the
+            // player and comes back, focus lands on the same line they launched from.
+            .focusRestorer()
+            .focusProperties {
+                exit = { dir -> if (dir == FocusDirection.Up) upFocus else FocusRequester.Default }
+            },
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(bottom = 24.dp),
+    ) {
+        if (active.isNotEmpty()) {
+            item {
+                Text("进行中", color = AppColors.AccentGreen, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            }
+            lazyItems(active) { rec ->
+                ActiveDownloadRow(rec, progress[rec.track.id] ?: 0f)
+            }
+        }
+        if (failed.isNotEmpty()) {
+            item {
+                Text("失败", color = AppColors.Danger, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            }
+            lazyItems(failed) { rec ->
+                FailedDownloadRow(rec)
+            }
+        }
+        folders.forEach { folder ->
+            val folderTracks = folder.trackIDs.mapNotNull { id ->
+                records[id]?.takeIf { it.status == com.baogemusic.tv.data.model.DownloadStatus.COMPLETED }
+            }
+            if (folderTracks.isNotEmpty()) {
+                item {
+                    Text(
+                        "${folder.name}  (${folderTracks.size})",
+                        color = AppColors.TextPrimary,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                val tracks = folderTracks.map { it.track }
+                itemsIndexed(tracks) { idx, track ->
+                    if (track.id in missing) {
+                        MissingDownloadRow(
+                            track = track,
+                            index = idx,
+                            nowPlaying = track.id == nowId,
+                            onPlay = { onPlay(tracks, idx) },
+                            onRetry = { appContainer.downloadCoordinator.redownload(track.id) },
+                            onRemove = { appContainer.downloadCoordinator.removeDownload(track.id) },
+                        )
+                    } else {
+                        com.baogemusic.tv.ui.components.TrackRow(
+                            track = track,
+                            index = idx,
+                            nowPlaying = track.id == nowId,
+                            onAddToPlaylist = { pickerTrack = track },
+                            onRemove = { confirmDelete = track },
+                            removeLabel = "删除下载",
+                            onClick = { onPlay(tracks, idx) },
+                        )
+                    }
+                }
+            }
+        }
+        if (active.isEmpty() && failed.isEmpty() && folders.none { f ->
+            f.trackIDs.any { id ->
+                records[id]?.status == com.baogemusic.tv.data.model.DownloadStatus.COMPLETED
+            }
+        }) {
+            item {
+                EmptyHint("还没有下载，在歌曲上按右键选「下载」按钮即可下载", Modifier.fillMaxSize())
+            }
+        }
+    }
+
+    pickerTrack?.let { t ->
+        com.baogemusic.tv.ui.components.PlaylistPickerDialog(track = t, onDismiss = { pickerTrack = null })
+    }
+    confirmDelete?.let { t ->
+        com.baogemusic.tv.ui.components.ConfirmDialog(
+            title = "删除下载",
+            message = "确定删除「${t.name}」的下载文件吗？删除后需要重新下载才能离线播放。",
+            onCancel = { confirmDelete = null },
+            onConfirm = {
+                confirmDelete = null
+                appContainer.downloadCoordinator.removeDownload(t.id)
+            },
+        )
+    }
+}
+
+@Composable
+private fun ActiveDownloadRow(
+    rec: com.baogemusic.tv.data.model.DownloadRecord,
+    progress: Float,
+) {
+    val pct = (progress * 100).toInt()
+    // Whole row is one focusable; OK = cancel (the only action while downloading). Cleaner
+    // D-pad path than two side-by-side focusables for a transient state.
+    com.baogemusic.tv.ui.components.TvFocusable(
+        onClick = { appContainer.downloadCoordinator.cancel(rec.track.id) },
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(rec.track.name, color = AppColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Text("${rec.track.singer} · ${rec.quality.displayName}", color = AppColors.TextMuted, fontSize = 11.sp, maxLines = 1)
+                Spacer(Modifier.height(4.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(2.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(AppColors.BgDeep),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(progress.coerceIn(0f, 1f))
+                            .height(2.dp)
+                            .background(AppColors.AccentGreen),
+                    )
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Text("$pct%", color = AppColors.AccentGreen, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(12.dp))
+            Text("OK 取消", color = AppColors.TextMuted, fontSize = 11.sp)
+        }
+    }
+}
+
+@Composable
+private fun FailedDownloadRow(rec: com.baogemusic.tv.data.model.DownloadRecord) {
+    // Two side-by-side focusable actions (retry / delete) because they're distinct outcomes —
+    // wrap the row in a Row of [text-block | retry-pill | delete-pill] so D-pad Right traverses
+    // them naturally.
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(rec.track.name, color = AppColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(
+                rec.errorMessage ?: "下载失败",
+                color = AppColors.Danger,
+                fontSize = 11.sp,
+                maxLines = 1,
+            )
+        }
+        TvPill(
+            onClick = { appContainer.downloadCoordinator.retry(rec.track.id) },
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+        ) { Text("重试", fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+        Spacer(Modifier.width(8.dp))
+        TvPill(
+            onClick = { appContainer.downloadCoordinator.removeDownload(rec.track.id) },
+            accent = AppColors.Danger,
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+        ) { Text("删除", fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+    }
+}
+
+/**
+ * A downloaded row whose file went missing on disk. Stays in its folder (the record is still a
+ * download), but shows a red 文件缺失 badge in place of the normal look + a 重试 pill that
+ * re-downloads. Clicking the left part still plays — playback falls back to the network.
+ */
+@Composable
+private fun MissingDownloadRow(
+    track: com.baogemusic.tv.data.model.Track,
+    index: Int,
+    nowPlaying: Boolean,
+    onPlay: () -> Unit,
+    onRetry: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Left block: focusable → plays (network fallback). Mirrors a normal row's layout.
+        TvFocusable(onClick = onPlay, modifier = Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(modifier = Modifier.width(28.dp), contentAlignment = Alignment.Center) {
+                    Text(
+                        "${index + 1}",
+                        color = AppColors.TextMuted,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        track.name,
+                        color = if (nowPlaying) AppColors.AccentGreen else AppColors.TextPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        track.subtitle,
+                        color = AppColors.TextSecondary,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(AppColors.Danger.copy(alpha = 0.18f))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                ) {
+                    Text("文件缺失", color = AppColors.Danger, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        TvPill(
+            onClick = onRetry,
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+        ) { Text("重试", fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+        Spacer(Modifier.width(8.dp))
+        // File is already gone, so no confirm — this only drops the stale record.
+        TvPill(
+            onClick = onRemove,
+            accent = AppColors.Danger,
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+        ) { Text("删除", fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+    }
+}

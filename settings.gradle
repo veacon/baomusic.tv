@@ -1,0 +1,2 @@
+rootProject.name = 'walkman-tv'
+include ':app'

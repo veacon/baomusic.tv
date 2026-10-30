@@ -1,0 +1,190 @@
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "org.jetbrains.kotlin.plugin.serialization"
+
+// Release-signing credentials live in `keystore.properties` at repo root. We don't fail the
+// build if the file is missing — release falls back to debug signing so 'assembleRelease' can
+// still run unsigned-ish on a clean checkout. For a real shipping APK, ensure the properties
+// file points at app/release.keystore with the matching alias/password.
+def releaseProps = new Properties()
+def releasePropsFile = rootProject.file("keystore.properties")
+if (releasePropsFile.exists()) {
+    releaseProps.load(new FileInputStream(releasePropsFile))
+}
+
+android {
+    namespace "com.baogemusic.tv"
+    compileSdk rootProject.ext.compileSdkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+
+    defaultConfig {
+        applicationId "com.baogemusic.tv"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 38
+        versionName "1.4.7"
+        // No abiFilters here on purpose — the `splits.abi` block below drives which ABIs are
+        // included. We drop x86 (no TV hardware ships on that ABI) and keep arm64-v8a /
+        // armeabi-v7a / x86_64 (the Android TV emulator).
+    }
+
+    // Produce one APK per supported ABI plus a universal fallback. The arm64-v8a APK targets
+    // modern Android TVs (2018+), armeabi-v7a covers older 32-bit chassis, x86_64 is for the
+    // Android TV emulator. Universal bundles all three so a user who doesn't know their TV's
+    // ABI can still install something. Each per-ABI APK is ~30% the size of the fat universal.
+    // 只出 arm64-v8a（现代电视/盒子都是这个 ABI），不再打通用包和 32 位包——体积更小、构建更快。
+    splits {
+        abi {
+            enable true
+            reset()
+            include "arm64-v8a"
+            universalApk false
+        }
+    }
+
+    signingConfigs {
+        debug {
+            def f = file('debug.keystore')
+            if (f.exists()) {
+                storeFile f
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+            }
+        }
+        release {
+            def storeFileName = releaseProps['storeFile'] ?: 'release.keystore'
+            def f = file(storeFileName)
+            if (f.exists() && releaseProps['keyAlias']) {
+                storeFile f
+                storePassword releaseProps['storePassword']
+                keyAlias releaseProps['keyAlias']
+                keyPassword releaseProps['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+            // 测试版作为独立 App 安装：和正式版并存（签名不同不能互相覆盖），桌面名字是「宝哥听 Debug」
+            // （见 src/debug/res）。数据和正式版分开。
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+        }
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+            // Use the release keystore when keystore.properties + release.keystore are present;
+            // otherwise fall back to debug so the build still completes during development.
+            def hasRelease = signingConfigs.release.storeFile != null
+            signingConfig hasRelease ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    buildFeatures {
+        compose true
+    }
+    composeOptions {
+        kotlinCompilerExtensionVersion rootProject.ext.composeCompilerVersion
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = "17"
+        freeCompilerArgs += ["-opt-in=kotlin.RequiresOptIn"]
+    }
+
+    packagingOptions {
+        resources {
+            excludes += ["/META-INF/{AL2.0,LGPL2.1}", "META-INF/*.kotlin_module"]
+        }
+    }
+
+    // 本地自测打包：跳过 release 的 lintVital 全量静态分析（对 Compose 项目尤其慢），
+    // 这一项能省掉几分钟；要上架前再打开。
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
+    }
+}
+
+// Rename output APKs from the default `app-{abi}-{buildType}.apk` so they're recognisable
+// when copied off the build server / sent over WeChat etc. Universal APK (no ABI filter)
+// gets the literal "universal" tag.
+import com.android.build.OutputFile
+android.applicationVariants.all { variant ->
+    variant.outputs.each { output ->
+        def abi = output.getFilter(OutputFile.ABI)
+        def tag = abi ?: "universal"
+        output.outputFileName = "baoge-tv-${variant.versionName}-${tag}-${variant.buildType.name}.apk"
+        // CI 上的测试包 versionCode 每次递增（正式版本号 × 100000 + 运行编号），测试包之间总能覆盖安装，
+        // 不会被电视安装器以「版本相同」拒绝。
+        def runNumber = System.getenv("GITHUB_RUN_NUMBER")
+        if (variant.buildType.name == "debug" && runNumber) {
+            output.versionCodeOverride = variant.versionCode * 100000 + (runNumber.toInteger() % 100000)
+        }
+    }
+}
+
+dependencies {
+    def composeBom = platform("androidx.compose:compose-bom:2024.06.00")
+    implementation composeBom
+
+    // Core / lifecycle
+    implementation "androidx.core:core-ktx:1.13.1"
+    implementation "androidx.activity:activity-compose:1.9.2"
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.8.6"
+    implementation "androidx.lifecycle:lifecycle-runtime-compose:2.8.6"
+    implementation "androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6"
+
+    // Compose + Compose for TV
+    implementation "androidx.compose.foundation:foundation"
+    implementation "androidx.compose.ui:ui"
+    implementation "androidx.compose.ui:ui-tooling-preview"
+    implementation "androidx.compose.material:material-icons-extended"
+    implementation "androidx.compose.material3:material3"
+    implementation "androidx.tv:tv-material:1.0.0"
+    debugImplementation "androidx.compose.ui:ui-tooling"
+
+    // Media playback
+    implementation "androidx.media3:media3-exoplayer:1.10.1"
+    implementation "androidx.media3:media3-session:1.10.1"
+
+    // Image loading
+    implementation "io.coil-kt:coil-compose:2.7.0"
+    // (BlurTransformation is provided locally in ui/components/BlurTransformation.kt — the
+    // io.coil-kt:coil-transformations artifact stopped publishing at 2.x and isn't synced with
+    // coil-compose 2.7.0.)
+
+    // Networking + serialization + coroutines
+    implementation "com.squareup.okhttp3:okhttp:4.12.0"
+    implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1"
+
+    // Persistence
+    implementation "androidx.datastore:datastore-preferences:1.1.1"
+
+    // SAF tree-Uri walker for local-folder import
+    implementation "androidx.documentfile:documentfile:1.0.1"
+
+    // Custom-source JS engine (kept from the RN app)
+    implementation "wang.harlon.quickjs:wrapper-android:3.2.3"
+
+    // Phone-to-TV QR flow: tiny in-app HTTP server + QR encoder
+    implementation "org.nanohttpd:nanohttpd:2.3.1"
+    implementation "com.google.zxing:core:3.5.3"
+
+    testImplementation "junit:junit:4.13.2"
+    testImplementation "org.json:json:20240303"
+    testImplementation "com.squareup.okhttp3:mockwebserver:4.12.0"
+}
+
+tasks.register("testUserApiPreload", Exec) {
+    group = "verification"
+    description = "Runs the lx user-api preload compatibility regression tests."
+    commandLine "node", "--test", "src/test/js/user-api-preload.test.js"
+}
