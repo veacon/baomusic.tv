@@ -11,7 +11,7 @@ import java.io.File
  *
  * 覆盖对象：
  *  - Coil 内存缓存（Bitmap LRU，已被 ImageLoader 封顶在 ≤64MB，但这里提供一键清空）
- *  - Coil 磁盘缓存（封面 / 歌词图，大小由 [com.baogemusic.tv.data.store.CacheLimit] 控制）
+ *  - Coil 磁盘缓存（封面 / 歌词图，大小由 [com.baogemusic.tv.data.store.CacheQuota] 控制）
  *  - 内嵌封面缓存（EmbeddedCovers，从本地音频抽取）
  *  - 扫码上传临时目录（uploads）
  *

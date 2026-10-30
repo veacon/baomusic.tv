@@ -36,7 +36,7 @@ import com.baogemusic.tv.ui.components.TvPill
 import com.baogemusic.tv.ui.playList
 import com.baogemusic.tv.ui.theme.AppColors
 
-private val boardSources = listOf(SourceID.KW, SourceID.WY, SourceID.KG, SourceID.TX)
+private val boardSources = listOf(SourceID.WY, SourceID.TX, SourceID.KG, SourceID.KW)
 
 @Composable
 fun LeaderboardScreen(onOpenPlayer: () -> Unit, modifier: Modifier = Modifier) {

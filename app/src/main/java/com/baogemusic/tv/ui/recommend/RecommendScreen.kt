@@ -268,7 +268,18 @@ private fun RecommendGrid(
             }
             item {
               // 两行网格展示（原来是一行横向列表 + 顶部轮播，卡片太大且占位过多）
-              SonglistTwoRows(home.recommendations) { info -> openSonglist(info) }
+              HomeCardGrid(
+                home.recommendations.map { info ->
+                  HomeCard(
+                    key = "${info.source.key}_${info.id}",
+                    picURL = info.picURL,
+                    title = info.name,
+                    subtitle = info.playCount?.let { "▶ $it" } ?: info.source.displayName,
+                    fallbackTint = info.source.tintColor(),
+                    onClick = { openSonglist(info) },
+                  )
+                },
+              )
             }
           }
           if (home.boards.isNotEmpty()) {
@@ -278,7 +289,19 @@ private fun RecommendGrid(
               }
             }
             item {
-              BoardRow(home.boards) { board -> openBoard(board) }
+              // 与「推荐歌单」共用同一套两行网格，卡片尺寸完全一致（不再因标题长短而宽窄不一）
+              HomeCardGrid(
+                home.boards.map { board ->
+                  HomeCard(
+                    key = "${board.source.key}_${board.id}",
+                    picURL = board.picURL,
+                    title = board.name,
+                    subtitle = board.source.displayName,
+                    fallbackTint = board.source.tintColor(),
+                    onClick = { openBoard(board) },
+                  )
+                },
+              )
             }
           }
           item { StatsRow(onNavigate) }
@@ -392,13 +415,24 @@ private fun SectionHeader(
   }
 }
 
+/** 首页卡片的统一数据模型：「推荐歌单」与「排行榜」共用，保证两处卡片尺寸完全一致。 */
+private data class HomeCard(
+  val key: String,
+  val picURL: String?,
+  val title: String,
+  val subtitle: String?,
+  val fallbackTint: Color,
+  val onClick: () -> Unit,
+)
+
+/**
+ * 两行等宽网格：每一张卡片都 `weight(1f)`，宽高严格一致（不再因标题长短而宽窄不一）。
+ * 「推荐歌单」与「排行榜」都走这里，所以两处的卡片大小完全统一。
+ */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
-private fun SonglistTwoRows(
-  items: List<com.baogemusic.tv.data.model.SonglistInfo>,
-  onSelect: (com.baogemusic.tv.data.model.SonglistInfo) -> Unit,
-) {
-  val unique = androidx.compose.runtime.remember(items) { items.distinctBy { "${it.source.key}_${it.id}" } }
+private fun HomeCardGrid(items: List<HomeCard>) {
+  val unique = androidx.compose.runtime.remember(items) { items.distinctBy { it.key } }
   if (unique.isEmpty()) return
   val cols = ((unique.size + 1) / 2).coerceIn(3, 8)
   val rows = unique.chunked(cols).take(2)
@@ -411,40 +445,19 @@ private fun SonglistTwoRows(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxWidth(),
       ) {
-        rowItems.forEach { info ->
+        rowItems.forEach { item ->
           AlbumCard(
-            picURL = info.picURL,
-            title = info.name,
-            subtitle = info.playCount?.let { "▶ $it" } ?: info.source.displayName,
-            fallbackTint = info.source.tintColor(),
-            onClick = { onSelect(info) },
+            picURL = item.picURL,
+            title = item.title,
+            subtitle = item.subtitle,
+            fallbackTint = item.fallbackTint,
+            onClick = item.onClick,
             modifier = Modifier.weight(1f),
           )
         }
         // 末行不足时用等宽占位补齐，避免剩余卡片被拉伸变形
         repeat(cols - rowItems.size) { Spacer(Modifier.weight(1f)) }
       }
-    }
-  }
-}
-
-@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
-@Composable
-private fun BoardRow(items: List<com.baogemusic.tv.data.model.BoardInfo>, onSelect: (com.baogemusic.tv.data.model.BoardInfo) -> Unit) {
-  val unique = androidx.compose.runtime.remember(items) { items.distinctBy { "${it.source.key}_${it.id}" } }
-  androidx.compose.foundation.lazy.LazyRow(
-    modifier = Modifier.focusRestorer(),
-    horizontalArrangement = Arrangement.spacedBy(14.dp),
-    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 4.dp),
-  ) {
-    items(unique, key = { "${it.source.key}_${it.id}" }) { board ->
-      AlbumCard(
-        picURL = board.picURL,
-        title = board.name,
-        subtitle = board.source.displayName,
-        fallbackTint = board.source.tintColor(),
-        onClick = { onSelect(board) },
-      )
     }
   }
 }

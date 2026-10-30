@@ -52,16 +52,17 @@ import com.baogemusic.tv.data.model.Quality
 import com.baogemusic.tv.data.model.SourceID
 import com.baogemusic.tv.data.model.UserScript
 import com.baogemusic.tv.data.store.AppFontFamily
-import com.baogemusic.tv.data.store.CacheLimit
 import com.baogemusic.tv.data.store.CacheManager
+import com.baogemusic.tv.data.store.CacheQuota
+import com.baogemusic.tv.data.store.DeviceInfo
 import com.baogemusic.tv.data.store.DiscShape
-import com.baogemusic.tv.data.store.GridColumns
-import com.baogemusic.tv.data.store.PlayerFx
-import com.baogemusic.tv.data.store.PlayerStyle
 import com.baogemusic.tv.data.store.FontImportRules
+import com.baogemusic.tv.data.store.GridColumns
 import com.baogemusic.tv.data.store.LyricAlignment
+import com.baogemusic.tv.data.store.LyricFont
 import com.baogemusic.tv.data.store.LyricScaleRange
 import com.baogemusic.tv.data.store.LyricSource
+import com.baogemusic.tv.data.store.PlayerFx
 import com.baogemusic.tv.data.store.PlayerLayout
 import com.baogemusic.tv.data.store.Settings
 import com.baogemusic.tv.data.store.UserFont
@@ -88,52 +89,6 @@ internal fun GeneralPage(
     modifier: Modifier = Modifier,
 ) {
     SettingsPageScaffold(modifier) {
-        // 缓存：当前大小 + 一键清理 + 磁盘上限
-        val context = LocalContext.current
-        val cacheScope = rememberCoroutineScope()
-        var cacheSizeText by remember { mutableStateOf("计算中…") }
-        LaunchedEffect(Unit) {
-            cacheSizeText = CacheManager.format(CacheManager.sizeBytes(context))
-        }
-        val doClearCache: () -> Unit = {
-            cacheScope.launch {
-                val freed = CacheManager.clear(context, appContainer.imageLoader)
-                cacheSizeText = CacheManager.format(CacheManager.sizeBytes(context))
-                android.widget.Toast.makeText(
-                    context, "已清理 ${CacheManager.format(freed)}", android.widget.Toast.LENGTH_SHORT,
-                ).show()
-            }
-        }
-
-        Section("缓存") {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Text(
-                    "当前缓存：$cacheSizeText",
-                    color = AppColors.TextSecondary,
-                    fontSize = 13.sp,
-                    modifier = Modifier.weight(1f),
-                )
-                TvPill(
-                    onClick = doClearCache,
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                ) { Text("清理缓存", fontSize = 13.sp) }
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CacheLimit.choices.forEach { mb ->
-                    TvPill(
-                        onClick = { onUpdate { it.copy(imageCacheMb = mb) } },
-                        selected = settings.imageCacheMb == mb,
-                    ) { Text("$mb MB", fontSize = 13.sp) }
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            HintText("图片磁盘缓存上限。内存缓存统一封顶 64MB，避免 1.5GB 小内存设备卡顿或 OOM。清理只删封面等临时缓存，不碰已下载的音乐。")
-        }
-
         Section("发现页音源") {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SourceID.homePageOrder.forEach { src ->
@@ -153,14 +108,6 @@ internal fun GeneralPage(
             }
             Spacer(Modifier.height(8.dp))
             HintText("勾选哪些平台参与推荐页（首页）的内容聚合，变化实时生效。")
-        }
-
-        Section("调试") {
-            TvSwitchRow("显示调试信息", settings.showDebugInfo) {
-                onUpdate { it.copy(showDebugInfo = !it.showDebugInfo) }
-            }
-            Spacer(Modifier.height(8.dp))
-            HintText("排查音源等问题时开启，平时不需要。目前包括：播放页歌手名下方显示获取播放地址、播放失败自动跳过、换音源等状态。")
         }
     }
 }
@@ -249,15 +196,15 @@ internal fun LyricPage(
             ) {
                 Stepper(
                     label = "字号",
-                    valueText = "%.1f×".format(settings.lyricFontScale),
+                    valueText = "${settings.lyricFontSizeSp}",
                     onMinus = {
                         onUpdate {
-                            it.copy(lyricFontScale = LyricScaleRange.step(it.lyricFontScale, -LyricScaleRange.STEP))
+                            it.copy(lyricFontSizeSp = LyricFont.step(it.lyricFontSizeSp, -LyricFont.STEP))
                         }
                     },
                     onPlus = {
                         onUpdate {
-                            it.copy(lyricFontScale = LyricScaleRange.step(it.lyricFontScale, LyricScaleRange.STEP))
+                            it.copy(lyricFontSizeSp = LyricFont.step(it.lyricFontSizeSp, LyricFont.STEP))
                         }
                     },
                     modifier = Modifier.focusRequester(firstFocus),
@@ -277,6 +224,8 @@ internal fun LyricPage(
                     },
                 )
             }
+            Spacer(Modifier.height(6.dp))
+            HintText("字号为歌词当前行的实际大小（sp），范围 ${LyricFont.MIN}–${LyricFont.MAX}；行距为倍率，步长 0.1。")
         }
 
         Section("歌词对齐") {
@@ -407,7 +356,7 @@ internal fun AppearancePage(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "夜空中最亮的星 · 字号 ${LyricScaleRange.fontSizeOf(settings.lyricFontScale)}sp",
+                    "夜空中最亮的星 · 字号 ${settings.lyricFontSizeSp}sp",
                     color = AppColors.TextSecondary,
                     fontFamily = currentFamily,
                     fontSize = 14.sp,
@@ -504,20 +453,16 @@ internal fun AppearancePage(
             }
         }
 
-        Section("播放页布局") {
+        Section("播放界面UI") {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PlayerStyle.entries.forEach { style ->
-                    TvPill(
-                        onClick = { onUpdate { it.copy(playerStyle = style) } },
-                        selected = settings.playerStyle == style,
-                    ) { Text(style.label, fontSize = 13.sp) }
-                }
+                TvPill(
+                    onClick = { },
+                    selected = true,
+                ) { Text("复刻网易", fontSize = 13.sp) }
             }
             Spacer(Modifier.height(8.dp))
-            HintText("三种都保持「歌名 / 歌手固定在左上角」：Apple Music 是封面在上、歌词在下；网易云是唱片在左、歌词在右；QQ 音乐是歌词居中占主、唱片较小靠右。")
-        }
-
-        Section("唱片与歌词方向") {
+            HintText("完全复刻网易云播放界面：左侧大封面、右侧歌词与歌名；纯 Compose 绘制，老电视与投影仪也能流畅运行。")
+            Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 PlayerLayout.entries.forEach { layout ->
                     TvPill(
@@ -527,7 +472,7 @@ internal fun AppearancePage(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            HintText("切换播放页里黑胶唱片和歌词谁在左、谁在右（Apple Music 是上下布局，不受此项影响）。")
+            HintText("切换播放页里唱片和歌词谁在左、谁在右（网易云同款为「唱片左 · 歌词右」）。")
         }
 
         Section("唱片形状") {
@@ -551,7 +496,7 @@ internal fun AppearancePage(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            HintText("神光 / 动感波光是用 Compose 直接画的封面光晕与律动波纹，跟着播放状态和音量起伏，不依赖 Web 内核，老电视和投影仪也能跑。")
+            HintText("动感波光是用 Compose 画的随音量向外扩散的波纹，从封面中心向外延伸并跟随唱片左右位置；不依赖 Web 内核，老电视和投影仪也能跑。")
         }
 
         Section("歌单列数") {
@@ -589,6 +534,54 @@ internal fun DownloadPage(
     val currentPath = settings.customDownloadDir ?: roots.firstOrNull()?.dir?.absolutePath
 
     SettingsPageScaffold(modifier) {
+        // 缓存：当前大小 + 一键清理 + 磁盘上限（步进 0.5GB，范围 0.5–5GB）
+        val context = LocalContext.current
+        val cacheScope = rememberCoroutineScope()
+        var cacheSizeText by remember { mutableStateOf("计算中…") }
+        LaunchedEffect(Unit) {
+            cacheSizeText = CacheManager.format(CacheManager.sizeBytes(context))
+        }
+        val doClearCache: () -> Unit = {
+            cacheScope.launch {
+                val freed = CacheManager.clear(context, appContainer.imageLoader)
+                cacheSizeText = CacheManager.format(CacheManager.sizeBytes(context))
+                android.widget.Toast.makeText(
+                    context, "已清理 ${CacheManager.format(freed)}", android.widget.Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
+
+        Section("缓存") {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(
+                    "当前缓存：$cacheSizeText",
+                    color = AppColors.TextSecondary,
+                    fontSize = 13.sp,
+                    modifier = Modifier.weight(1f),
+                )
+                TvPill(
+                    onClick = doClearCache,
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                ) { Text("清理缓存", fontSize = 13.sp) }
+            }
+            Spacer(Modifier.height(10.dp))
+            Stepper(
+                label = "磁盘缓存上限",
+                valueText = "%.1f GB".format(settings.imageCacheGb),
+                onMinus = {
+                    onUpdate { s -> s.copy(imageCacheGb = CacheQuota.step(s.imageCacheGb, -CacheQuota.STEP_GB)) }
+                },
+                onPlus = {
+                    onUpdate { s -> s.copy(imageCacheGb = CacheQuota.step(s.imageCacheGb, CacheQuota.STEP_GB)) }
+                },
+            )
+            Spacer(Modifier.height(8.dp))
+            HintText("图片磁盘缓存上限（步进 0.5GB，范围 0.5–5GB）。内存缓存统一封顶 64MB，避免 1.5GB 小内存设备卡顿或 OOM。清理只删封面等临时缓存，不碰已下载的音乐。")
+        }
+
         Section("下载目录") {
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -665,6 +658,35 @@ internal fun DownloadPage(
             }
             Spacer(Modifier.height(8.dp))
             HintText("开启后，对歌单「下载全部」时，已下载但音质与所选不同的歌会按新音质重新下载（如 128k 升级到 FLAC）；关闭则一律跳过已下载。默认开启。")
+        }
+
+        Section("清理") {
+            val clearScope = rememberCoroutineScope()
+            var showClearDialog by remember { mutableStateOf(false) }
+            val downloadedCount = appContainer.downloadStore.completedCount
+            TvPill(
+                onClick = { showClearDialog = true },
+                accent = AppColors.Danger,
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+            ) { Text("清理本地下载音乐", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+            Spacer(Modifier.height(8.dp))
+            HintText("删除本机已下载的全部音乐文件与记录（共 $downloadedCount 首）。此操作不可恢复，但不会动设置与其它缓存。")
+            if (showClearDialog) {
+                ConfirmDeleteDialog(
+                    title = "清理本地下载音乐",
+                    message = "确定要删除本机已下载的全部 $downloadedCount 首音乐吗？文件删除后无法恢复。",
+                    onCancel = { showClearDialog = false },
+                    onConfirm = {
+                        showClearDialog = false
+                        clearScope.launch {
+                            val freed = appContainer.downloadStore.clearAllDownloads()
+                            android.widget.Toast.makeText(
+                                context, "已清理 ${CacheManager.format(freed)}", android.widget.Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                    },
+                )
+            }
         }
     }
 }
@@ -768,33 +790,73 @@ internal fun ConnectPage(
                 }
             }
         }
-
-        Section("字体上传") {
-            HintText(
-                "上传 ttf / otf / woff2 字体（不超过 ${FontImportRules.MAX_BYTES_LABEL}），上传后可在「外观 → 全局字体」里预览并应用。",
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                TvPill(onClick = onPickFont, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("选择字体文件", fontSize = 13.sp)
-                    }
-                }
-                QrPill("扫码上传字体", onQrFont)
-            }
-        }
     }
 }
 
 // ============== 关于与更新 ======================================================================
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun AboutPage(
+    settings: Settings,
+    onUpdate: ((Settings) -> Settings) -> Unit,
     firstFocus: FocusRequester,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    val deviceRows = remember { DeviceInfo.deviceRows(context) }
+    val hwFormats = remember { DeviceInfo.hardwareFormats() }
     SettingsPageScaffold(modifier) {
+        Section("调试") {
+            TvSwitchRow("显示调试信息", settings.showDebugInfo) {
+                onUpdate { it.copy(showDebugInfo = !it.showDebugInfo) }
+            }
+            Spacer(Modifier.height(8.dp))
+            HintText("排查音源等问题时开启，平时不需要。开启后播放页会显示获取播放地址、播放失败自动跳过、换音源等状态。")
+        }
+
+        Section("本机设备") {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (row in deviceRows) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            row.label,
+                            color = AppColors.TextMuted,
+                            fontSize = 13.sp,
+                            modifier = Modifier.width(92.dp),
+                        )
+                        Text(
+                            row.value,
+                            color = AppColors.TextPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            }
+        }
+
+        Section("硬件解码格式") {
+            if (hwFormats.isEmpty()) {
+                Text("未检测到可硬解的常用格式", color = AppColors.TextMuted, fontSize = 13.sp)
+            } else {
+                androidx.compose.foundation.layout.FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    for (fmt in hwFormats) {
+                        TvPill(onClick = { }, selected = true) { Text(fmt, fontSize = 13.sp) }
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            HintText("自动探测本机 MediaCodec 硬件解码器得到的音视频格式（H.264 / H.265 / AAC / FLAC …）。软解一切正常时无需关心，仅供排查设备兼容性。")
+        }
+
         UpdateSection(firstFocus)
     }
 }

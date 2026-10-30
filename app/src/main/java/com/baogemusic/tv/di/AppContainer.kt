@@ -133,25 +133,27 @@ class AppContainer(val appContext: Context) {
     // ============ 图片加载：受控内存 + 磁盘缓存，避免 1.5GB 设备 OOM ============
     private var _imageLoader: ImageLoader? = null
 
-    /** 全局唯一 ImageLoader：内存缓存按进程可用内存封顶（≤64MB），磁盘缓存按 [CacheLimit] 上限。
+    /** 全局唯一 ImageLoader：内存缓存按进程可用内存封顶（≤64MB），磁盘缓存按 [CacheQuota] 上限。
      *  首次访问时用当前设置构建并注册为 Coil 单例，之后 AsyncImage 自动复用。 */
     val imageLoader: ImageLoader
-        get() = _imageLoader ?: buildImageLoader(settingsStore.settings.value.imageCacheMb).also {
+        get() = _imageLoader ?: buildImageLoader(settingsStore.settings.value.imageCacheGb).also {
             _imageLoader = it
             Coil.setImageLoader(it)
         }
 
-    private fun buildImageLoader(cacheMb: Int): ImageLoader {
+    private fun buildImageLoader(cacheGb: Float): ImageLoader {
         val maxMem = Runtime.getRuntime().maxMemory().coerceAtLeast(64L * 1024 * 1024)
         // 内存缓存最多占进程的 1/16，且封顶 64MB（64MB = 67,108,864，仍在 Int 范围内）。
         // 封面多为大图，封顶能压住峰值内存，避免 1.5GB 设备 OOM。
         val memBytes = min(maxMem / 16, 64L * 1024 * 1024).toInt()
+        // 磁盘缓存上限按 GB 换算成字节（上限 5GB 仍远小于 Int 上限，安全）。
+        val diskBytes = (cacheGb * 1024f * 1024f * 1024f).toLong().coerceAtLeast(64L * 1024 * 1024)
         return ImageLoader.Builder(appContext)
             .memoryCache { MemoryCache.Builder(appContext).maxSizeBytes(memBytes).build() }
             .diskCache {
                 DiskCache.Builder()
                     .directory(File(appContext.cacheDir, "image_cache"))
-                    .maxSizeBytes(cacheMb * 1024L * 1024L)
+                    .maxSizeBytes(diskBytes)
                     .build()
             }
             // 关闭硬件位图：动效封面 / 模糊背景需要软件解码绘制，统一走堆内存更可控。
@@ -160,8 +162,8 @@ class AppContainer(val appContext: Context) {
     }
 
     /** 缓存上限改变时重建 ImageLoader（先清空旧磁盘缓存，再切到新上限）。 */
-    fun rebuildImageLoader(cacheMb: Int) {
-        val next = buildImageLoader(cacheMb)
+    fun rebuildImageLoader(cacheGb: Float) {
+        val next = buildImageLoader(cacheGb)
         _imageLoader?.diskCache?.clear()
         _imageLoader = next
         Coil.setImageLoader(next)
@@ -284,7 +286,7 @@ class AppContainer(val appContext: Context) {
                 downloadCoordinator.setMaxConcurrent(s.maxConcurrentDownloads)
             }.launchIn(appScope)
             // 图片缓存上限改变时重建 ImageLoader（先清空旧磁盘缓存再套用新上限）。
-            settingsStore.settings.map { it.imageCacheMb }.distinctUntilChanged()
+            settingsStore.settings.map { it.imageCacheGb }.distinctUntilChanged()
                 .onEach { rebuildImageLoader(it) }
                 .launchIn(appScope)
             scriptStore.loadAll()

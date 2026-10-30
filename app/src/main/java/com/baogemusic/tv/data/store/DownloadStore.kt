@@ -321,6 +321,25 @@ class DownloadStore(private val context: Context) {
         persist()
     }
 
+    /** 清空所有已下载的音乐文件与记录（保留默认文件夹）。返回释放的字节数。 */
+    suspend fun clearAllDownloads(): Long {
+        val records = _records.value
+        var freed = 0L
+        records.values.forEach { rec ->
+            if (rec.status == DownloadStatus.COMPLETED) {
+                val file = rec.safUri?.let { null } ?: runCatching { File(rootFor(rec), rec.fileName) }.getOrNull()
+                if (file != null && file.isFile) freed += file.length()
+            }
+            deleteBackingFile(rec)
+        }
+        _records.value = emptyMap()
+        _folders.value = listOf(DownloadFolder.makeDefault())
+        _missing.value = emptySet()
+        _progress.value = emptyMap()
+        persist()
+        return freed
+    }
+
     fun publishProgress(trackID: String, p: Float?) {
         _progress.value = if (p == null) {
             _progress.value - trackID

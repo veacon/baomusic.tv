@@ -62,14 +62,14 @@ internal enum class SettingsPage(
 ) {
     GENERAL(
         "通用",
-        { s, _, _ -> "发现页音源 ${s.homeSources.size} 个 · 调试信息${if (s.showDebugInfo) "开" else "关"}" },
+        { s, _, _ -> "发现页音源 ${s.homeSources.size} 个" },
     ),
     PLAYBACK("播放", { s, _, _ -> "音质 ${s.preferredQuality.displayName} · 解码 · 播放界面" }),
-    LYRIC("歌词", { s, _, _ -> "字号 %.1f× · 行距 %.1f× · ${s.lyricAlignment.label} · 数据源 ${s.lyricSources.firstOrNull()?.label ?: "默认"}".format(s.lyricFontScale, s.lyricLineScale) }),
-    APPEARANCE("外观", { s, _, fontCount -> "字体 ${s.appFontFamily.label}${if (fontCount > 0) " · 自定义 $fontCount 个" else ""} · ${s.playerStyle.label} · ${s.gridColumns} 列" }),
-    DOWNLOAD("下载", { s, _, _ -> "并发 ${s.maxConcurrentDownloads} · ${if (s.customDownloadDir == null && s.customDownloadTreeUri == null) "默认目录" else "自定义目录"}" }),
-    CONNECT("连接与上传", { _, scripts, _ -> "音源脚本 $scripts 个 · 扫码导入 · 字体上传" }),
-    ABOUT("关于与更新", { _, _, _ -> "版本与检查更新" }),
+    LYRIC("歌词", { s, _, _ -> "字号 ${s.lyricFontSizeSp}sp · 行距 %.1f× · ${s.lyricAlignment.label} · 数据源 ${s.lyricSources.firstOrNull()?.label ?: "默认"}".format(s.lyricLineScale) }),
+    APPEARANCE("外观", { s, _, fontCount -> "字体 ${s.appFontFamily.label}${if (fontCount > 0) " · 自定义 $fontCount 个" else ""} · ${s.discShape.label} · ${s.gridColumns} 列" }),
+    DOWNLOAD("下载", { s, _, _ -> "并发 ${s.maxConcurrentDownloads} · 缓存 ${"%.1f".format(s.imageCacheGb)}GB · ${if (s.customDownloadDir == null && s.customDownloadTreeUri == null) "默认目录" else "自定义目录"}" }),
+    CONNECT("连接与上传", { _, scripts, _ -> "音源脚本 $scripts 个 · 扫码导入" }),
+    ABOUT("关于与更新", { _, _, _ -> "版本与检查更新 · 设备信息 · 调试" }),
 }
 
 /**
@@ -255,7 +255,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                 firstFocus = pageFocus,
                 modifier = modifier,
             )
-            SettingsPage.ABOUT -> AboutPage(pageFocus, modifier)
+            SettingsPage.ABOUT -> AboutPage(settings, update, pageFocus, modifier)
         }
     }
 

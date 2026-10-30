@@ -41,7 +41,7 @@ import com.baogemusic.tv.ui.components.MediaCard
 import com.baogemusic.tv.ui.components.TvPill
 import kotlinx.coroutines.launch
 
-private val songlistSources = listOf(SourceID.KW, SourceID.WY, SourceID.KG, SourceID.TX)
+private val songlistSources = listOf(SourceID.WY, SourceID.TX, SourceID.KG, SourceID.KW)
 
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable

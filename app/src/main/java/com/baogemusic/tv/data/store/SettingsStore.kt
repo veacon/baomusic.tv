@@ -21,14 +21,11 @@ enum class LyricAlignment(val label: String) {
     RIGHT("右对齐"),
 }
 
-/** 歌词字号 / 行距都用 1.0–3.0 的倍率控制（设置页里是两个并排步进器，步进 0.2）。
- *  字号 = [BASE_SIZE_SP] × 字号倍率；行距 = [BASE_LINE_FACTOR] × 行距倍率（同时作用于行高和行间距）。 */
+/** 歌词行距（倍率）。1.0–3.0，步长 0.1（设置页里是步进器）。行高 = 字号 × 该值。 */
 object LyricScaleRange {
     const val MIN = 1.0f
     const val MAX = 3.0f
-    const val STEP = 0.2f
-    /** 1.0 倍时的当前行字号（sp），与改造前的默认 24sp 对齐；3.0 倍 → 72sp。 */
-    const val BASE_SIZE_SP = 24
+    const val STEP = 0.1f
     /** 1.0 倍时的行高倍率（字号 × 该值）。 */
     const val BASE_LINE_FACTOR = 1.5f
 
@@ -36,12 +33,21 @@ object LyricScaleRange {
     /** 步进后保留一位小数，避免浮点累加出 1.4000001 这种显示值。 */
     fun step(value: Float, delta: Float): Float =
         clamp(((value + delta) * 10).roundToInt() / 10f)
-    fun fontSizeOf(scale: Float): Int = (BASE_SIZE_SP * scale).roundToInt()
+    fun lineFactorOf(scale: Float): Float = BASE_LINE_FACTOR * scale
     /** 非当前行字号：约为当前行的 0.68 倍。 */
     fun inactiveOf(activeFontSp: Int): Int = (activeFontSp * 0.68f).roundToInt().coerceAtLeast(12)
     /** 翻译行字号：约为当前行的 0.52 倍。 */
     fun translationOf(activeFontSp: Int): Int = (activeFontSp * 0.52f).roundToInt().coerceAtLeast(10)
-    fun lineFactorOf(scale: Float): Float = BASE_LINE_FACTOR * scale
+}
+
+/** 歌词当前行字号（sp，绝对值）。设置页直接以数值显示（如 45），不再是倍率。 */
+object LyricFont {
+    const val MIN = 16
+    const val MAX = 72
+    const val STEP = 1
+    const val DEFAULT = 24
+    fun clamp(value: Int): Int = value.coerceIn(MIN, MAX)
+    fun step(value: Int, delta: Int): Int = clamp(value + delta)
 }
 
 /** 全局字体（整个 App 的文字都用它，不只是歌词）。SYSTEM 用系统默认（思源/Noto 一类），
@@ -72,21 +78,12 @@ enum class LyricSource(val label: String, val sourceId: com.baogemusic.tv.data.m
     }
 }
 
-/** 全屏播放页「唱片 / 歌词」的左右排布。LYRIC_LEFT 是原来的样子（歌词在左、唱片在右）。 */
+/** 全屏播放页「唱片 / 歌词」的左右排布。LYRIC_LEFT 是歌词在左、唱片在右；
+ *  LYRIC_RIGHT 是网易云同款（唱片在左、歌词在右）。 */
 @Serializable
 enum class PlayerLayout(val label: String) {
     LYRIC_LEFT("歌词左 · 唱片右"),
     LYRIC_RIGHT("唱片左 · 歌词右"),
-}
-
-/** 播放页布局风格。三种都保持「歌名 / 歌手固定在左上角」，区别是唱片与歌词的排布：
- *  APPLE 上下结构（大圆角方形封面在上、歌词在下）；NETEASE 左右结构（唱片左、歌词右）；
- *  QQ 左右结构（歌词占主并居中、唱片较小靠右）。 */
-@Serializable
-enum class PlayerStyle(val label: String) {
-    APPLE("Apple Music"),
-    NETEASE("网易云音乐"),
-    QQ("QQ音乐"),
 }
 
 /** 唱片 / 封面的展示形状。 */
@@ -96,12 +93,12 @@ enum class DiscShape(val label: String) {
     ROUNDED_SQUARE("圆角方形"),
 }
 
-/** 播放页背景动效：封面光晕 / 律动波光。全部用 Compose Canvas 绘制（不依赖 Web 内核），
- *  在 Android 8 的电视 / 投影仪上也能跑。 */
+/** 播放页背景动效。参考 QQ 音乐「动感波光」（随音量向外扩散的波纹）。
+ *  纯 Compose Canvas 绘制（不依赖 Web 内核），在 Android 8 的电视 / 投影仪上也能跑。
+ *  注意：原「神光」已按需求移除，仅保留「动感波光」。 */
 @Serializable
 enum class PlayerFx(val label: String) {
     OFF("关闭"),
-    AURORA("神光"),
     WAVE("动感波光"),
 }
 
@@ -112,12 +109,17 @@ object GridColumns {
     fun clamp(value: Int): Int = value.coerceIn(choices.first(), choices.last())
 }
 
-/** 图片磁盘缓存上限（MB）。内存缓存另在 ImageLoader 里按进程可用内存封顶（≤64MB），
- *  避免 1.5GB 这类小内存设备 OOM。改动后即时重建 ImageLoader 生效。 */
-object CacheLimit {
-    val choices = listOf(100, 200, 300, 500)
-    const val DEFAULT = 200
-    fun clamp(value: Int): Int = value.coerceIn(choices.first(), choices.last())
+/** 图片磁盘缓存上限（GB）。内存缓存另在 ImageLoader 里按进程可用内存封顶（≤64MB），
+ *  避免 1.5GB 这类小内存设备 OOM。步长 0.5GB，范围 0.5–5GB。改动后即时重建 ImageLoader 生效。 */
+object CacheQuota {
+    const val MIN_GB = 0.5f
+    const val MAX_GB = 5.0f
+    const val STEP_GB = 0.5f
+    const val DEFAULT_GB = 0.5f
+    fun clamp(value: Float): Float = value.coerceIn(MIN_GB, MAX_GB)
+    /** 步长 0.5GB：先按步长归一再乘回，避免 0.50000001 这类浮点累积误差。 */
+    fun step(value: Float, delta: Float): Float =
+        clamp((((value + delta) / STEP_GB).roundToInt()) * STEP_GB)
 }
 
 /** Color theme for the player's spinning vinyl disc. GREEN is the original look and the default;
@@ -144,9 +146,9 @@ data class Settings(
      *  同时关闭硬件直通。默认关闭。 */
     val forceSoftwareDecoding: Boolean = false,
     val showLyricTranslation: Boolean = true,
-    /** 歌词字号倍率，1.0–3.0（步进 0.2）；实际字号 = 24sp × 该值。 */
-    val lyricFontScale: Float = 1.0f,
-    /** 歌词行距倍率，1.0–3.0（步进 0.2）；实际行高 = 字号 × 1.5 × 该值。 */
+    /** 歌词当前行字号（sp，绝对值，如 45）。设置页直接以数值显示，步进 1。 */
+    val lyricFontSizeSp: Int = LyricFont.DEFAULT,
+    /** 歌词行距倍率，1.0–3.0（步长 0.1）；实际行高 = 字号 × 1.5 × 该值。 */
     val lyricLineScale: Float = 1.0f,
     /** 歌词对齐方式：左对齐 / 居中 / 右对齐。 */
     val lyricAlignment: LyricAlignment = LyricAlignment.LEFT,
@@ -160,18 +162,16 @@ data class Settings(
     /** 允许自动回退：关掉后只用排在第一位的源。 */
     val lyricSourceFallback: Boolean = true,
     val vinylColor: VinylColor = VinylColor.GREEN,
-    /** 播放页唱片 / 歌词的左右排布（仅在左右型布局下生效）。 */
-    val playerLayout: PlayerLayout = PlayerLayout.LYRIC_LEFT,
-    /** 播放页布局风格：Apple Music / 网易云音乐 / QQ音乐。 */
-    val playerStyle: PlayerStyle = PlayerStyle.NETEASE,
-    /** 唱片 / 封面形状：圆形唱片 or 圆角方形封面。 */
-    val discShape: DiscShape = DiscShape.CIRCLE,
-    /** 播放页背景动效：关闭 / 神光 / 动感波光。 */
-    val playerFx: PlayerFx = PlayerFx.AURORA,
+    /** 播放页唱片 / 歌词的左右排布：网易云同款是「唱片左 · 歌词右」。 */
+    val playerLayout: PlayerLayout = PlayerLayout.LYRIC_RIGHT,
+    /** 唱片 / 封面形状：圆形唱片 or 圆角方形封面（网易云同款为圆角方形）。 */
+    val discShape: DiscShape = DiscShape.ROUNDED_SQUARE,
+    /** 播放页背景动效：关闭 / 动感波光（波纹从封面中心向外扩散，跟随唱片左右位置）。 */
+    val playerFx: PlayerFx = PlayerFx.WAVE,
     /** 歌单页 / 我的页面的卡片列数（4–8），列数越多卡片越小。 */
     val gridColumns: Int = GridColumns.DEFAULT,
-    /** 图片磁盘缓存上限（MB）。详见 [CacheLimit]。 */
-    val imageCacheMb: Int = CacheLimit.DEFAULT,
+    /** 图片磁盘缓存上限（GB）。详见 [CacheQuota]。 */
+    val imageCacheGb: Float = CacheQuota.DEFAULT_GB,
     /** Player screen: hide progress bar + transport after a few idle seconds; any D-pad / OK key
      *  brings them back. Off by default. */
     val autoHidePlayerControls: Boolean = false,
