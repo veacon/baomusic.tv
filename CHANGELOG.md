@@ -70,12 +70,23 @@
 - **全屏歌词特效**：「歌词 → 全屏歌词特效」新增「商籁」（居中三行歌词 + 细线分隔 + 柔和暗角的雅致歌词）与「星海」（深蓝星海背景 + 蓝白辉光歌词），参考 YuMusic / QQ 音乐；选择后播放页以全屏歌词替代「封面 + 歌词」舞台。
 - **更名「宝听」**：应用名、标题、退出提示等由「宝哥听」统一改为「宝听」；重绘桌面图标与 TV 横幅（蓝色音符 logo）。
 
-## 九、构建产物
+## 九、闪退修复与调试信息导出（1.4.7 补充）
+- **修复「点击播放即闪退」（重点）**：音频 offload（DSP / HDMI 直通）此前在 Android 8 上默认开启。部分老电视芯片（MStar/m7221「ironman」等）会声称支持 offload，实际喂入 FLAC/Hi-Res 时在 native 层直接崩溃（一按播放就闪退，Java 层捕获不到）。现在：
+  - 构建 ExoPlayer 时默认 **关闭** offload；仅在 **API ≥ 29（Android 10+）且用户开启「Hi-Res 硬件直通」** 时才启用，Android 8 一律走普通解码路径。
+  - 设置页「音频解码」补充说明：老系统会自动忽略硬件直通，若仍闪退或无声音请开启「强制软件解码」。
+- **崩溃兜底与协程保护**：
+  - 全局 `UncaughtExceptionHandler` 把崩溃堆栈写入 `filesDir/debug/crash-*.txt`（保留最近 10 份）。
+  - `PlaybackController` 的协程作用域新增 `CoroutineExceptionHandler`，解码 / 探测 / 歌词等后台任务异常不再直接崩溃进程。
+  - 音频文件头探测（AudioSpecProbe）、设备信息与硬解检测（MediaCodecList / WindowManager）均加 `runCatching`，异常时降级为空或最小信息。
+  - 播放页特效 Canvas 增加零尺寸保护，避免 `Brush.radialGradient` 半径为 0 时抛异常；唱片大小在使用处再做一次范围钳制。
+- **调试信息扫码下载**：新增「关于与更新 → 调试 → 生成调试信息（扫码下载）」。手机扫码或访问 `http://电视IP:端口/debug` 即可下载文本报告，包含：版本、机型 / 系统 / ABI、硬件音频解码能力、当前设置 JSON、最近崩溃堆栈、近期 logcat。内置手机助手首页也新增「🐞 下载调试信息」入口。
+
+## 十、构建产物
 - `app/build/outputs/apk/release/baoge-tv-1.4.7-arm64-v8a-release.apk`（约 29MB，仅 arm64-v8a；内置「小抖动侠情书」字体约占 3.5MB）。
 - 使用 debug 签名（仓库无 keystore）；如需正式签名，放入 `keystore.properties` + `release.keystore` 后重新构建。
 - **由于设置字段有破坏性变更，首次启动会恢复默认偏好**，需要重新调一次歌词字号 / 对齐等；升级后上述「默认值调整」会按新默认生效。
 
-## 十、GitHub 上传前注意事项
+## 十一、GitHub 上传前注意事项
 1. `UpdateManager.kt` 的 `OWNER` / `REPO` 改为你自己的 GitHub 仓库（否则应用内更新会去拉原项目）。
 2. 不要提交 `local.properties`、`*.keystore`、`build/` 目录（已在 `.gitignore` 内）。
 3. 上传的 Release APK 命名保持 `baoge-tv-<版本>-arm64-v8a-release.apk`，应用内更新器按 `-<abi>-` 自动匹配。

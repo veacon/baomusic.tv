@@ -20,8 +20,8 @@ object DeviceInfo {
 
     data class Row(val label: String, val value: String)
 
-    /** 设备基础信息：型号 / 制造商 / 系统版本 / 内存 / 屏幕。 */
-    fun deviceRows(context: Context): List<Row> {
+    /** 设备基础信息：型号 / 制造商 / 系统版本 / 内存 / 屏幕。任何一步异常都退回最小信息集，绝不崩溃。 */
+    fun deviceRows(context: Context): List<Row> = runCatching {
         val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
         val memInfo = ActivityManager.MemoryInfo()
         am.getMemoryInfo(memInfo)
@@ -32,7 +32,7 @@ object DeviceInfo {
         @Suppress("DEPRECATION")
         wm.defaultDisplay.getRealMetrics(dm)
 
-        return listOf(
+        listOf(
             Row("设备型号", "${Build.BRAND} ${Build.MODEL}".replaceFirstChar { it.uppercase() }),
             Row("制造商", Build.MANUFACTURER.replaceFirstChar { it.uppercase() }),
             Row("系统版本", "Android ${Build.VERSION.RELEASE}（API ${Build.VERSION.SDK_INT}）"),
@@ -40,10 +40,15 @@ object DeviceInfo {
             Row("屏幕分辨率", "${dm.widthPixels} × ${dm.heightPixels}"),
             Row("屏幕密度", "${dm.densityDpi} dpi"),
         )
+    }.getOrElse {
+        listOf(
+            Row("设备型号", "${Build.BRAND} ${Build.MODEL}".replaceFirstChar { it.uppercase() }),
+            Row("系统版本", "Android ${Build.VERSION.RELEASE}（API ${Build.VERSION.SDK_INT}）"),
+        )
     }
 
     /** 本机可硬解的格式（友好的中文/英文简称）。[audioOnly] 为 true 时只保留音频格式。 */
-    fun hardwareFormats(audioOnly: Boolean = false): List<String> {
+    fun hardwareFormats(audioOnly: Boolean = false): List<String> = runCatching {
         val found = LinkedHashMap<String, String>() // MIME -> 友好名，保序去重
         val codecList = MediaCodecList(MediaCodecList.REGULAR_CODECS)
         for (info in codecList.codecInfos) {
@@ -54,8 +59,8 @@ object DeviceInfo {
                 FRIENDLY[type]?.let { found.putIfAbsent(type, it) }
             }
         }
-        return found.values.toList()
-    }
+        found.values.toList()
+    }.getOrElse { emptyList() }
 
     /** MediaCodecInfo.isHardwareAccelerated() 需要 API 29+；低版本用 OMX 名称启发式。 */
     private fun isHardware(info: MediaCodecInfo): Boolean {

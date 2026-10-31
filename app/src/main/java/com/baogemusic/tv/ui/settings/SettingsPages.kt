@@ -132,6 +132,11 @@ internal fun PlaybackPage(
             TvSwitchRow("强制软件解码（播放闪退或没声音时请开启，下一首起生效）", settings.forceSoftwareDecoding) {
                 onUpdate { it.copy(forceSoftwareDecoding = !it.forceSoftwareDecoding) }
             }
+            Spacer(Modifier.height(8.dp))
+            HintText(
+                "提示：Android 10 以下（API < 29）系统会忽略「硬件直通」以免部分老电视芯片的音频 offload " +
+                    "原生闪退；若仍闪退或无声，请开启「强制软件解码」。",
+            )
         }
 
         Section("播放界面") {
@@ -813,6 +818,7 @@ internal fun ConnectPage(
 internal fun AboutPage(
     settings: Settings,
     onUpdate: ((Settings) -> Settings) -> Unit,
+    onShowDebug: () -> Unit,
     firstFocus: FocusRequester,
     modifier: Modifier = Modifier,
 ) {
@@ -826,6 +832,12 @@ internal fun AboutPage(
             }
             Spacer(Modifier.height(8.dp))
             HintText("排查音源等问题时开启，平时不需要。开启后播放页会显示获取播放地址、播放失败自动跳过、换音源等状态。")
+            Spacer(Modifier.height(10.dp))
+            TvPill(onClick = onShowDebug, contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
+                Text("生成调试信息（扫码下载）", fontSize = 13.sp)
+            }
+            Spacer(Modifier.height(8.dp))
+            HintText("生成包含设备信息、当前设置、崩溃日志与近期 logcat 的报告，手机扫码即可下载文件，方便反馈闪退问题。")
         }
 
         Section("本机设备") {

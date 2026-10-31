@@ -267,6 +267,17 @@ class AppContainer(val appContext: Context) {
                 events,
                 hotSearchJson = { hotSearchJsonBlocking() },
                 uploadDir = File(appContext.cacheDir, "uploads"),
+                debugReport = {
+                    runCatching {
+                        com.baogemusic.tv.data.store.DebugReport.build(
+                            appContext,
+                            kotlinx.serialization.json.Json.encodeToString(
+                                com.baogemusic.tv.data.store.Settings.serializer(),
+                                settingsStore.settings.value,
+                            ),
+                        )
+                    }.getOrNull()
+                },
             )
         }
         appScope.launch {
@@ -275,7 +286,14 @@ class AppContainer(val appContext: Context) {
             settingsStore.settings.onEach { s ->
                 playbackController.preferredQuality = s.preferredQuality
                 // 硬件直通会把未解码的数据直接交给音频硬件，绕过解码器；强制软解时一并关掉。
-                playbackController.setAudioOffloadEnabled(s.audioOffloadEnabled && !s.forceSoftwareDecoding)
+                // Android 8（API 26/27）及以下不少电视芯片（如 MStar/m7221）的音频 HAL 会声称支持
+                // offload，实际喂入 FLAC/Hi-Res 时在 native 层直接崩溃（表现为一按播放就闪退），
+                // 因此仅在 API 29+（Android 10+）才允许开启。
+                playbackController.setAudioOffloadEnabled(
+                    s.audioOffloadEnabled &&
+                        !s.forceSoftwareDecoding &&
+                        android.os.Build.VERSION.SDK_INT >= 29,
+                )
                 playbackController.forceSoftwareDecoding = s.forceSoftwareDecoding
                 sourceManager.fallbackEnabled = s.fallbackEnabled
                 // 歌词数据源：按顺序尝试，前一个拿不到就自动回退到下一个。

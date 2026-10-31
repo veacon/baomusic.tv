@@ -16,12 +16,14 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import com.baogemusic.tv.data.store.DebugReport
 import com.baogemusic.tv.data.store.PlaybackSnapshot
 import com.baogemusic.tv.data.model.Quality
 import com.baogemusic.tv.data.model.Track
 import com.baogemusic.tv.source.ResolveOrigin
 import com.baogemusic.tv.source.ResolvedTrack
 import com.baogemusic.tv.source.SourceManager
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -240,13 +242,14 @@ class PlaybackController(
                 .setHandleAudioBecomingNoisy(true)
                 .build()
 
-            // Ask the OS for audio offload when the downstream sink (DSP / HDMI passthrough /
-            // Bluetooth A2DP offload) can decode it directly — preserves bit-perfect PCM/FLAC.
+            // 默认关闭音频 offload（DSP 直通）。部分老电视芯片（Android 8 的 MStar/m7221 等）会
+            // 声称支持 offload，但喂入 FLAC/Hi-Res 时在 native 层直接崩溃（一按播放就闪退）。
+            // AppContainer 会在读取设置后、且仅当 API >= 29 时按用户开关重新打开。
             player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
                 .setAudioOffloadPreferences(
                     TrackSelectionParameters.AudioOffloadPreferences.Builder()
                         .setAudioOffloadMode(
-                            TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_ENABLED,
+                            TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_DISABLED,
                         )
                         .build(),
                 )
@@ -255,7 +258,15 @@ class PlaybackController(
         }
     }
     private var serviceStarted = false
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    // 统一兜底：协程里未捕获的异常默认会让进程崩溃（表现为切歌 / 播放时闪退）。这里捕获并记录，
+    // 既写日志文件（可用「关于 → 调试信息」扫码下载），也不再把整个 App 带崩。
+    private val scope = CoroutineScope(
+        SupervisorJob() + Dispatchers.Main.immediate +
+            CoroutineExceptionHandler { _, e ->
+                android.util.Log.e("PlaybackController", "uncaught coroutine exception", e)
+                runCatching { DebugReport.recordCrash(appContext, Thread.currentThread(), e) }
+            },
+    )
 
     private val _state = MutableStateFlow(PlaybackState())
     val state: StateFlow<PlaybackState> = _state.asStateFlow()
@@ -466,7 +477,8 @@ class PlaybackController(
                 if (audioSpecProbe != null) {
                     probeJob = scope.launch {
                         val targetUrl = r.url
-                        val spec = audioSpecProbe.probe(targetUrl)
+                        // 探测只是锦上添花（决定徽标显示），任何异常都不应影响播放。
+                        val spec = runCatching { audioSpecProbe.probe(targetUrl) }.getOrNull()
                         if (spec != null && probingUrl == targetUrl) {
                             _audioSpec.value = spec
                         }

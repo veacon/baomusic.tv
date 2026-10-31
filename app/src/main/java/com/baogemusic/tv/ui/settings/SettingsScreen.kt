@@ -255,7 +255,13 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                 firstFocus = pageFocus,
                 modifier = modifier,
             )
-            SettingsPage.ABOUT -> AboutPage(settings, update, pageFocus, modifier)
+            SettingsPage.ABOUT -> AboutPage(
+                settings = settings,
+                onUpdate = update,
+                onShowDebug = { qrTarget = QrTarget.DEBUG },
+                firstFocus = pageFocus,
+                modifier = modifier,
+            )
         }
     }
 
@@ -297,15 +303,25 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
         val ip = remember { getLanIp() }
         val port = appContainer.localServer?.boundPort
         if (ip != null && port != null) {
-            val path = if (target == QrTarget.FONT) "font" else "script"
+            val path = when (target) {
+                QrTarget.FONT -> "font"
+                QrTarget.SCRIPT -> "script"
+                QrTarget.DEBUG -> "debug"
+            }
+            val title = when (target) {
+                QrTarget.FONT -> "扫码上传字体"
+                QrTarget.SCRIPT -> "扫码导入音源"
+                QrTarget.DEBUG -> "扫码下载调试信息"
+            }
+            val subtitle = when (target) {
+                QrTarget.FONT -> "手机扫码、电脑打开地址都可以，上传 ttf / otf / woff2 字体（不超过 ${com.baogemusic.tv.data.store.FontImportRules.MAX_BYTES_LABEL}）"
+                QrTarget.SCRIPT -> "手机扫码、电脑打开地址都可以，可粘贴脚本 URL 或上传 .js 文件"
+                QrTarget.DEBUG -> "手机扫码或电脑打开地址即可下载调试报告（设备信息 / 设置 / 崩溃日志 / logcat）。"
+            }
             QrDialog(
                 url = "http://$ip:$port/$path",
-                title = if (target == QrTarget.FONT) "扫码上传字体" else "扫码导入音源",
-                subtitle = if (target == QrTarget.FONT) {
-                    "手机扫码、电脑打开地址都可以，上传 ttf / otf / woff2 字体（不超过 ${com.baogemusic.tv.data.store.FontImportRules.MAX_BYTES_LABEL}）"
-                } else {
-                    "手机扫码、电脑打开地址都可以，可粘贴脚本 URL 或上传 .js 文件"
-                },
+                title = title,
+                subtitle = subtitle,
                 onDismiss = { qrTarget = null },
             )
         } else {
@@ -352,7 +368,7 @@ private suspend fun applyImportedFont(result: Result<UserFont>): String = result
     { "字体导入失败：${it.message ?: "未知错误"}" },
 )
 
-private enum class QrTarget { SCRIPT, FONT }
+private enum class QrTarget { SCRIPT, FONT, DEBUG }
 
 // ============== 一级页：分类入口 =================================================================
 

@@ -205,6 +205,8 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
     // 歌词沿用用户在设置里选的对齐方式（默认左对齐）。
     val effectiveAlign = settings.lyricAlignment
     val coverOnLeft = settings.playerLayout == PlayerLayout.LYRIC_RIGHT
+    // 老存档 / 异常值兜底：把缩放系数夹到合法范围，避免超大尺寸布局或 Canvas 半径异常导致渲染崩溃。
+    val safeCoverScale = com.baogemusic.tv.data.store.CoverScale.clamp(settings.coverScale)
 
     // 歌名 + 平台标签 + 歌手 + 专辑 + 调试信息。BetterLyrics 模式下移到封面下方，故抽成可复用块。
     val trackMeta: @Composable () -> Unit = {
@@ -313,13 +315,13 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
           verticalAlignment = Alignment.CenterVertically,
         ) {
           if (coverOnLeft) {
-            coverContainer(Modifier, 0.72f * settings.coverScale)
+            coverContainer(Modifier, 0.72f * safeCoverScale)
             Spacer(Modifier.width(40.dp))
             lyricPanel(Modifier.weight(1f), true)
           } else {
             lyricPanel(Modifier.weight(1f), true)
             Spacer(Modifier.width(40.dp))
-            coverContainer(Modifier, 0.72f * settings.coverScale)
+            coverContainer(Modifier, 0.72f * safeCoverScale)
           }
         }
       }
@@ -1478,6 +1480,7 @@ private fun PlayerBackdrop(
     val cy = size.height / 2f
     val base = size.minDimension
     val center = Offset(cx, cy)
+    if (base <= 0f) return@Canvas
     // 动感波光：三圈随时间向外扩散的波纹 + 中心呼吸光（中心 = 专辑中心）
     for (i in 0 until 3) {
       val p = (t + i / 3f) % 1f
@@ -1540,6 +1543,7 @@ private fun RippleBackdrop(
     val cy = size.height / 2f
     val base = size.minDimension
     val center = Offset(cx, cy)
+    if (base <= 0f) return@Canvas
     val rings = 6
     for (i in 0 until rings) {
       val p = ((t + i.toFloat() / rings) % 1f)
@@ -1624,6 +1628,7 @@ private fun DustBackdrop(
     val w = size.width
     val h = size.height
     val base = size.minDimension
+    if (base <= 0f) return@Canvas
     val center = Offset(w / 2f, h / 2f)
     // 中心星云
     val nebula = base * 0.52f
@@ -1848,6 +1853,7 @@ private fun StarField(modifier: Modifier = Modifier) {
     List(150) { floatArrayOf(rnd.nextFloat(), rnd.nextFloat(), 0.3f + rnd.nextFloat() * 1.8f, rnd.nextFloat()) }
   }
   androidx.compose.foundation.Canvas(modifier.fillMaxSize()) {
+    if (size.minDimension <= 0f) return@Canvas
     drawRect(
       brush = Brush.verticalGradient(
         listOf(Color(0xFF050D18).copy(alpha = 0.82f), Color(0xFF0A1B2E).copy(alpha = 0.82f)),

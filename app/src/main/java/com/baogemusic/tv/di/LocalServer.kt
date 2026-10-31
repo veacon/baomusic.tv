@@ -31,6 +31,8 @@ class LocalServer private constructor(
     // Where uploaded fonts are staged. NanoHTTPD deletes its multipart temp files as soon as the
     // response is written, so we copy the bytes out before replying.
     private val uploadDir: File,
+    // 生成调试信息报告文件（设备信息 + 设置 + 崩溃日志 + logcat），供 /debug 扫码下载。
+    private val debugReport: () -> File?,
     port: Int,
 ) : NanoHTTPD(port) {
 
@@ -66,6 +68,16 @@ class LocalServer private constructor(
         "/playlist-name" -> html(PLAYLIST_NAME_HTML)
         "/songlist-url" -> html(SONGLIST_URL_HTML)
         "/font" -> html(FONT_HTML)
+        // 调试信息报告：下载为附件，手机扫码即可保存后回传，方便排查闪退。
+        "/debug" -> {
+            val file = runCatching { debugReport() }.getOrNull()
+            if (file != null && file.exists()) download(file, "baoting-debug.txt")
+            else newFixedLengthResponse(
+                Response.Status.INTERNAL_ERROR,
+                MIME_PLAINTEXT,
+                "调试信息生成失败，请在电视上重试",
+            )
+        }
         "" -> html(INDEX_HTML)
         else -> notFound()
     }
@@ -151,6 +163,19 @@ class LocalServer private constructor(
     private fun json(body: String): Response =
         newFixedLengthResponse(Response.Status.OK, "application/json; charset=utf-8", body)
 
+    /** 以「附件下载」形式返回本地文件（手机点开链接直接保存）。 */
+    private fun download(file: File, fileName: String): Response {
+        val res = newFixedLengthResponse(
+            Response.Status.OK,
+            "text/plain; charset=utf-8",
+            file.inputStream(),
+            file.length(),
+        )
+        res.addHeader("Content-Disposition", "attachment; filename=\"$fileName\"")
+        res.addHeader("Cache-Control", "no-store")
+        return res
+    }
+
     private fun notFound(): Response =
         newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Not Found")
 
@@ -166,9 +191,10 @@ class LocalServer private constructor(
             events: AppEvents,
             hotSearchJson: () -> String = { "[]" },
             uploadDir: File,
+            debugReport: () -> File? = { null },
         ): LocalServer? {
             for (port in listOf(8765, 8766, 8767, 8768)) {
-                val server = LocalServer(events, hotSearchJson, uploadDir, port)
+                val server = LocalServer(events, hotSearchJson, uploadDir, debugReport, port)
                 if (server.tryStart()) return server
             }
             return null
@@ -204,6 +230,7 @@ class LocalServer private constructor(
               <div class="card"><a href="/playlist-name"><h2>✏️ 输入歌单名</h2></a></div>
               <div class="card"><a href="/songlist-url"><h2>🔗 推送歌单链接</h2></a></div>
               <div class="card"><a href="/font"><h2>🔤 上传歌词字体</h2></a></div>
+              <div class="card"><a href="/debug"><h2>🐞 下载调试信息</h2></a></div>
             </body></html>
         """.trimIndent()
 
