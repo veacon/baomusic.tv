@@ -1,0 +1,48 @@
+宝听 (baoting)
+Copyright 2026 宝听 contributors
+
+本产品基于 SincereXing 的 walkman-tv 项目（https://github.com/SincereXing/walkman-tv）
+二次修改而来，遵循 Apache License 2.0。
+
+This product is a modified fork of walkman-tv (https://github.com/SincereXing/walkman-tv)
+by SincereXing, licensed under the Apache License, Version 2.0.
+
+--------------------------------------------------------------------------------
+对上游源代码所做的主要修改（Apache-2.0 §4(b)：注明被修改的文件）
+--------------------------------------------------------------------------------
+
+1. 品牌与资源
+   - res/values/strings.xml、ui/RootScreen.kt、ui/components/TopNav.kt 等：应用名改为「宝听」
+   - res/mipmap-*、res/drawable-*/banner.png、res/drawable/ic_launcher_background.xml：重绘图标与 TV 横幅
+   - res/font/：新增 xiaodou_poetry.ttf、aa_ming_mei_spring.ttf，移除 pingfang_hk.otf
+
+2. 播放界面
+   - ui/player/PlayerScreen.kt：固定为「左封面 + 右歌词」布局；新增全屏歌词特效
+     （光感 / 星海 / 胶片）、波纹特效、宇宙尘埃特效；唱片大小缩放；移除来源标签与
+     BetterLyrics 卡片
+   - data/store/ArtistPhotoStore.kt（新增）：从网易云公开接口获取歌手写真
+   - data/store/SettingsStore.kt：新增 PlayerFx / FullscreenLyricFx / CoverScale / schemaVersion，
+     调整默认值，新增 FullscreenLyricFxSerializer
+
+3. 设置界面
+   - ui/settings/SettingsScreen.kt、ui/settings/SettingsPages.kt：「通用」并入「播放」，字体移入
+     「歌词」，全屏歌词特效移入「外观」；新增设备信息与硬件音频解码展示、调试报告入口
+   - data/store/DebugReport.kt（新增）：崩溃收集、操作轨迹、调试报告生成
+   - di/LocalServer.kt：新增 /debug 路由（调试报告下载）
+
+4. 播放与音源
+   - playback/PlaybackController.kt：默认关闭音频 offload、默认开启软件解码、老设备关闭 float
+     输出与缩小缓冲、优先 AOSP 解码器、解码失败自愈、AnalyticsListener 埋点
+   - playback/AudioLevelProcessor.kt、playback/AudioSpecProbe.kt、data/store/DeviceInfo.kt：
+     异常兜底
+   - source/builtin/BuiltInLyricResolver.kt、playback/LyricsFetcher.kt：新增按歌名 + 歌手的
+     跨平台歌词搜索兜底
+   - ui/components/BlurTransformation.kt：复用 RenderScript 上下文并限制输入尺寸
+
+5. 其他
+   - ui/leaderboard/LeaderboardScreen.kt、ui/songlist/SonglistScreen.kt：默认音源改为网易云
+   - app/build.gradle：仅构建 arm64-v8a、输出文件名改为 baoge-tv-*
+   - .github/workflows/release.yml：适配新的 APK 文件名
+   - README.md、CHANGELOG.md：重写与扩充
+
+上游文件中未列出的部分保持原样。完整差异可用 `git log` 查看。

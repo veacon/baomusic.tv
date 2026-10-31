@@ -250,8 +250,6 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                 onQrScript = { qrTarget = QrTarget.SCRIPT },
                 onToggleScript = { scope.launch { appContainer.scriptStore.setEnabled(it.id, !it.enabled) } },
                 onDeleteScript = { pendingDeleteScript = it },
-                onPickFont = ::openFontPicker,
-                onQrFont = { qrTarget = QrTarget.FONT },
                 firstFocus = pageFocus,
                 modifier = modifier,
             )

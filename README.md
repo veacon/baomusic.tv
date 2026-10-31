@@ -1,218 +1,257 @@
-# 随便听 · walkman-tv
+# 宝听 · baoting
 
-> 一款面向大屏、遥控器友好的 **原生 Android TV 音乐播放器**，使用 **Kotlin + Jetpack Compose for TV** 编写，**安装后需先在设置页面配置自定义音源** ，否则播放不了音乐。
+> 面向 **Android TV / 投影仪** 的原生音乐播放器，遥控器（D-pad）友好。
+> **本项目基于 [SincereXing/walkman-tv](https://github.com/SincereXing/walkman-tv) 二次修改**，
+> Kotlin + Jetpack Compose for TV 编写，沿用原项目的 Apache-2.0 许可证。
 
 <p>
-  <a href="https://github.com/SincereXing/walkman-tv/releases/latest"><img alt="release" src="https://img.shields.io/github/v/release/SincereXing/walkman-tv?display_name=tag&label=release&color=3DDC84"></a>
-  <a href="https://github.com/SincereXing/walkman-tv/releases"><img alt="downloads" src="https://img.shields.io/github/downloads/SincereXing/walkman-tv/total?label=downloads&color=3DDC84"></a>
   <img alt="platform" src="https://img.shields.io/badge/platform-Android%20TV-3DDC84">
   <img alt="language" src="https://img.shields.io/badge/Kotlin-Compose%20for%20TV-7F52FF">
   <img alt="minSdk" src="https://img.shields.io/badge/minSdk-23-blue">
+  <img alt="abi" src="https://img.shields.io/badge/ABI-arm64--v8a-lightgrey">
   <img alt="license" src="https://img.shields.io/badge/license-Apache--2.0-green">
-  <img alt="built with" src="https://img.shields.io/badge/built%20with-Claude%20Code-d97757">
 </p>
-
-主打「打开就能听、用方向键就能玩」：暗色界面、大封面、逐行滚动歌词、旋转黑胶，所有交互都为 D-pad（方向键 + OK + 返回）设计，适配客厅观看距离，播放器能够动态适配电视机屏幕尺寸。保留 **洛雪音乐（lx-music）v4 自定义源的 JS 解析协议**，在此基础上**扩展了更多音质档位**。
-
-> 🤖 本项目的**全部代码均由 [Claude Code](https://claude.com/claude-code) 生成**（含架构、UI、播放/下载/导入逻辑与本文档）。
 
 ---
 
-## 📺 界面预览
+## 一、这个项目是什么
 
-![全屏播放器：旋转黑胶 + 逐行歌词 + 实时波形 + Master / FLAC 24bit/192kHz 音质标识](docs/screenshots/player-live.jpg)
+上游 [walkman-tv](https://github.com/SincereXing/walkman-tv)（原名「随便听」）已经实现了一套完整的 TV 音乐播放器骨架：
+多平台聚合搜索、排行榜、歌单广场、下载、本地导入、在线歌单导入、自定义音源（兼容洛雪 lx-music v4 脚本协议）、扫码输入等。
 
-| 推荐首页：常驻正在播放面板 + 推荐卡片 | 搜索：多平台聚合 + MV/SQ/Hi-Res 角标 |
+**宝听** 在这个骨架上做的是「**客厅观感 + 老电视稳定性**」方向的二改：
+
+- 播放页按网易云风格重做，并加入多种全屏歌词特效；
+- 把设置项按「用户真正会调的东西」重新归类、精简；
+- 针对 Android 8 / 1.5GB 内存的老电视盒子做了一轮音频与内存加固（这批设备最容易「一按播放就闪退」）；
+- 补上了**可自行扫码下载的调试报告**，方便定位线上崩溃。
+
+> ⚠️ 与上游一致：**安装后必须先在「设置 → 连接与上传」配置至少一个自定义音源脚本**，否则无法解析播放地址。
+> 内置直连仅作兜底，不保证可用。
+
+---
+
+## 二、适合谁用
+
+| | 说明 |
+|---|---|
+| ✅ **老 Android TV / 投影仪**（Android 8/9、1.5GB 内存） | 默认软件解码、关闭音频直通与 float 输出，把「一按播放就闪退」的概率压到最低；界面全部为轻量 Compose Canvas 绘制，不依赖 WebView |
+| ✅ **只用遥控器的客厅场景** | 所有控件为方向键设计，字号 / 间距按 3 米观看距离放大 |
+| ✅ **喜欢网易云播放页观感的人** | 左封面右歌词、圆形黑胶、逐行歌词、全屏歌词特效（胶片还能用歌手写真做背景） |
+| ✅ **想给家人做一台「纯净听歌机」的人** | 无广告、无推荐算法、无账号体系，数据全在本地 |
+| ⚠️ **需要开箱即用的人** | 不适合：本项目不含任何音源，必须自行导入脚本 |
+| ⚠️ **32 位老盒子** | 目前只构建 `arm64-v8a`；需要 32 位请自行调整 `app/build.gradle` 的 `splits`（见第六节） |
+
+---
+
+## 三、相对上游改了什么
+
+> 逐条流水账见 [CHANGELOG.md](CHANGELOG.md)，下面按类别归纳。
+
+### 1. 新增（上游没有的）
+
+**全屏歌词特效（3 种）** — 「外观 → 全屏歌词特效」，也可用播放页底部控制栏的图标循环切换
+
+- **光感**：居中三行（上一句 / 当前句 / 下一句）+ 柔和暗角，逐句淡入淡出；
+- **星海**：深蓝星海背景 + 漂浮闪烁星点，当前句发蓝白辉光；
+- **胶片**：**以歌手写真为背景** —— 通过网易云公开接口（`/api/song/detail` → 歌手 id → `/api/artist/{id}` 的 `img1v1Url`）自动抓取艺人宣传照，叠加「肯·伯恩斯」缓慢推近镜头 + 电影黑边 + 颗粒 + 暗角，歌词改为底部字幕式；取不到写真时回退专辑封面，结果按歌手名缓存。
+
+**播放页动效** — 「外观 → 播放页动效」
+
+- **波纹特效**：从唱片中心向外扩散的同心水波（参考 BMMusicPlayer）；
+- **宇宙尘埃特效**：缓慢漂浮、明暗呼吸的尘埃粒子（参考 ParticleView）；
+- 均为纯 Compose Canvas + `BlendMode.Screen`，不依赖 WebView / 着色器，老设备也能跑。
+
+**字体系统** — 「歌词 → 歌词字体」
+
+- 内置中文（歌词）字体 **「小抖动侠情书」**、**「Aa祝你我明媚向春天」**，随包无需联网；
+- 支持 **上传 ttf / otf / woff2** 与 **手机扫码上传**，每个字体用自身渲染做预览；
+- 字体**只作用于歌词**，不改动其余界面文字。
+
+**调试与可观测性** — 「关于与更新 → 调试」
+
+- 全局崩溃收集：未捕获异常写入 `filesDir/debug/crash-*.txt`（保留最近 10 份）；
+- **操作轨迹（breadcrumbs）**：`playAt` / `prepare` / `ready` / `playerError` / `audioFormat` / `audioDecoder` / `audioUnderrun` 逐步落盘，**原生崩溃（SIGSEGV）也能看出死在哪个阶段**；
+- **扫码下载调试报告**：点「生成调试信息（扫码下载）」，或用手机访问 `http://电视IP:8765/debug`。报告包含设备信息、硬件解码能力、当前设置 JSON、崩溃堆栈、操作轨迹、`logcat -b crash`（tombstone 摘要）。
+
+**其他**
+
+- 关于页展示设备信息（机型 / 系统 / 内存 / 分辨率 / 密度）与**硬件音频解码格式**（只读，不可点击）；
+- 唱片大小步进调节（0.5×–3.0×，默认 1.0×），封面与动效中心同步缩放；
+- 歌词新增**跨平台搜索兜底**：直接按「歌名 + 歌手」搜同名歌词。
+
+### 2. 改造（上游有，但行为 / 观感不同）
+
+| 项目 | 上游 | 本项目 |
+|---|---|---|
+| 应用名 / 图标 | 随便听 | **宝听**，重绘桌面图标与 TV 横幅；包名仍为 `com.baogemusic.tv`，可覆盖升级 |
+| 播放界面 | 模糊背景 + 旋转黑胶，后续有过 BetterLyrics 双风格 | **固定「复刻网易」两栏**（左封面 · 右歌词），移除风格切换；播放页不显示来源平台标签 |
+| 设置结构 | 通用 / 播放 / 歌词 / 外观 / 连接 / 下载 / 关于（7 项） | **合并为 6 项**：「通用」并入「播放」；字体移入「歌词」；全屏歌词特效移入「外观」；「黑胶颜色」与「唱片形状」合并为「唱片」 |
+| 歌词字号 / 行距 | 倍率 1.0–3.0 | 字号改为**实际 sp 值**（16–72，默认 40）；行距 0.5–2.0 倍（步长 0.1，默认 0.9） |
+| 排行榜 / 歌单默认音源 | 酷我 | **网易云** |
+| 发现页音源默认 | 全开 | **仅网易云 + QQ 音乐** |
+| 播放控件自动隐藏 | 默认关 | **默认开**（5 秒无操作隐藏） |
+| 唱片形状 / 排布默认 | 圆角方形 · 唱片左 | **圆形 · 歌词左 · 唱片右** |
+| 缓存上限 | 固定值 | 步进器 0.5–5GB（步长 0.5），并从「通用」移到「下载」页 |
+
+### 3. 优化
+
+**老设备音频加固（本项目重点）**
+
+- **强制软件解码默认开启**、**Hi-Res 硬件直通默认关闭**（Android 10 以下一律禁用直通）；
+- 软件解码时**只选 AOSP 解码器**（`c2.android.*` / `OMX.google.*`）——部分厂商解码器自称 `software`，实际仍在 OMX 组件里跑，喂某些 MP3 会在 native 层崩溃；
+- **API < 29**：关闭 float 音频输出（退回 16bit PCM）、缓冲从 30s/60s 降到 20s/40s；
+- 解码失败（`DECODER_INIT_FAILED` / `DECODING_FAILED` / `AUDIO_TRACK_INIT_FAILED`）自动切软解并重试一次；
+- 老存档通过 `schemaVersion` 做一次性迁移，升级后自动切到软解，不用手动找开关。
+
+**内存与渲染**
+
+- 图片加载器内存缓存按进程可用内存 1/16 封顶（≤64MB），磁盘缓存按设置上限，关闭硬件位图；
+- 封面模糊的 RenderScript **复用同一上下文**（原先每张封面新建一个，native 内存容易被耗光），输入尺寸封顶 720px，失败时降级为未模糊图；
+- 播放页特效 Canvas 全部加零尺寸保护，避免 `radialGradient(radius = 0)` 抛异常。
+
+**体验与链路**
+
+- 歌词抓取：用户脚本 → 同平台直连 → 按设置顺序换源 → **按名字跨平台搜索兜底**（酷狗 → 网易云 → QQ），显著减少「正常歌却没歌词」；
+- 所有 IO 走 `Dispatchers.IO`，后台协程加 `CoroutineExceptionHandler`，异常不再直接把进程带崩；
+- 首页 / 歌单卡片尺寸统一，平台标签顺序统一为 网易云 → QQ → 酷狗 → 酷我。
+
+### 4. 修复
+
+- **「点击播放即闪退」（Android 8 / MStar 等老芯片）**：音频 offload 在原生层崩溃 → 默认关闭，且仅在 API ≥ 29 且用户显式开启时启用；
+- 未捕获异常、协程异常、`MediaCodecList` / `WindowManager` 调用异常、音频文件头探测异常均已兜底，不再直接崩溃进程；
+- 修复首页卡片大小不一、播放页波纹中心与唱片不同心等视觉问题。
+
+### 5. 移除
+
+- BetterLyrics 播放界面与「播放界面 UI」切换（按要求固定为复刻网易）；
+- 「鲸鱼特效」（原复刻网易鲸云音效）、「神光」动效；
+- 极光 / 霓虹 两种全屏歌词样式（保留光感 / 星海 / 胶片）；
+- 内置「苹方-港」字体（替换为「Aa祝你我明媚向春天」）。
+
+---
+
+## 四、界面预览
+
+> 下列截图来自上游版本，用于说明整体布局；本项目已更名「宝听」并重做了播放页与设置页，截图后续更新。
+
+![全屏播放器](docs/screenshots/player-live.jpg)
+
+| 推荐首页 | 搜索 |
 |:--:|:--:|
 | ![推荐首页](docs/screenshots/home.jpg) | ![搜索页](docs/screenshots/search.jpg) |
 
-| 扫码搜索：电视出码，手机/电脑打开即输 | 手机端输入页（局域网直连，无需装 App） |
+| 扫码输入（电视出码） | 手机端输入页（局域网直连） |
 |:--:|:--:|
-| ![扫码搜索弹窗](docs/screenshots/qr-search.jpg) | <img src="docs/screenshots/phone-input.jpg" alt="手机扫码输入页" width="280"> |
+| ![扫码](docs/screenshots/qr-search.jpg) | <img src="docs/screenshots/phone-input.jpg" alt="手机输入页" width="260"> |
 
 ---
 
-## 📥 下载安装
+## 五、下载与安装
 
-前往 **[Releases](../../releases/latest)** 下载最新 APK，用 U 盘 / `adb install` 装到 Android TV 即可。
-
-- **`walkman-tv-x.y.z-universal-release.apk`** —— 通用包，不确定机型就下它（体积稍大，任意 ABI 都能装）。
-- **`walkman-tv-x.y.z-arm64-v8a-release.apk`** —— 现代电视/盒子（2018 年后，64 位 ARM），体积更小。
-- **`walkman-tv-x.y.z-armeabi-v7a-release.apk`** —— 老的 32 位 ARM 机型。
-- **`walkman-tv-x.y.z-x86_64-release.apk`** —— x86 盒子 / Android TV 模拟器。
-
-> 安装：`adb connect <电视IP>` 后 `adb install walkman-tv-x.y.z-universal-release.apk`；或把 APK 拷到 U 盘，用电视上的「文件管理器 / 安装包安装器」打开。首次安装需在系统设置里允许「未知来源 / 安装未知应用」。系统要求 Android 6.0+（minSdk 23）。
-
----
-
-## ✨ 功能特性
-
-| 分区 | 说明 |
-|---|---|
-| **推荐（首页）** | 左侧常驻「正在播放」面板（大封面 / 歌名歌手 / 当前歌词行 / 进度），右侧推荐卡片网格 + 已播·收藏统计 |
-| **搜索** | 多平台聚合搜歌，可按单一音源筛选；支持**手机扫码输入**关键词（局域网推送，省去电视端打字） |
-| **排行榜** | 各平台官方榜单浏览 → 榜内歌曲 → 播放 |
-| **歌单广场** | 按标签 / 排序浏览歌单 → 歌单详情 → 整单播放 |
-| **我的列表** | 我的收藏、**播放历史**（自动记录、去重置顶）、自建歌单；本地 JSON 持久化 |
-| **下载** | 单曲 / **整单批量下载**（我的列表里「下载全部」，并发可配置、相同音质自动跳过、可选「按新音质重下」升级已下载）、多音质、文件夹分组、进度跟踪、断点状态恢复，并写入 **ID3v2.4 / FLAC** 元数据（标题/歌手/专辑/曲号/年份/封面/歌词）；**可在设置中选择下载目录**（内部存储 / SD 卡 / U 盘，或用系统文件夹选择器 SAF 指定任意可浏览文件夹） |
-| **本地导入** | 通过 SAF 选择文件夹递归扫描导入本地音乐（mp3 / flac / m4a / wav…），自动读取内嵌标签 |
-| **在线歌单导入** | 粘贴或扫码推送 **网易云 / QQ 音乐 / 酷狗 / 酷我** 的歌单分享链接（含 iPhone 微信分享的新格式），实时识别并一键**全量导入**为本地歌单——几百上千首也完整拉取、不截断 |
-| **全屏播放器** | 模糊封面背景 + 旋转黑胶 + 逐行歌词 + 波形进度 + 传输控件 + 收藏；歌词字号可调（标准 / 大 / 最大） |
-| **MV** | 取各平台 MV 地址，用 ExoPlayer 在视频层播放 |
-| **设置 / 自定义源管理** | 音质偏好、发现页音源开关、内置直连兜底、歌词翻译、歌词大小，以及通过 **URL / 文件 / 扫码** 导入 lx-music v4 脚本 |
-
-> 文字输入统一支持「手机扫码 → 局域网推送」：电视端展示二维码，手机访问内置轻量 HTTP 服务页面输入中文/链接后回传，避免在电视上用遥控器逐字敲。
-
----
-
-## 🎵 支持的音乐平台
-
-| 平台 | 代码 | 搜索 | 排行榜 | 歌单 | 在线歌单导入 |
-|---|---|:--:|:--:|:--:|:--:|
-| 酷我音乐 | `kw` | ✅ | ✅ | ✅ | ✅ |
-| 酷狗音乐 | `kg` | ✅ | ✅ | ✅ | ✅ |
-| QQ 音乐 | `tx` | ✅ | ✅ | ✅ | ✅ |
-| 网易云音乐 | `wy` | ✅ | ✅ | ✅ | ✅ |
-| 本地文件 | `local` | — | — | — | （本地导入） |
-
-> 目录数据（搜索 / 排行榜 / 歌单）走各平台直连 API；播放地址解析优先走自定义源脚本，失败时回落到内置直连（kw / wy）兜底。
-
----
-
-## 🎧 音质档位
-
-8 级音质体系，从高到低排序，播放时按「目标音质 → 逐级降级」级联选取：
-
-| 档位 | key | 显示名 | 角标 |
-|---|---|---|---|
-| 母带 | `master` | 臻品母带 | Master |
-| 全景声 2.0 | `atmos_plus` | 臻品全景声 2.0 | Atmos |
-| 全景声 | `atmos` | 臻品全景声 | Atmos |
-| 高解析 | `hires` | Hi-Res 高解析 | Hi-Res |
-| 24bit 无损 | `flac24bit` | Hi-Res 24bit | Hi-Res |
-| 无损 | `flac` | 无损 FLAC | SQ |
-| 高品 | `320k` | 高品 320k | HQ |
-| 标准 | `128k` | 标准 128k | STD |
-
-> 音质档位是开放的：**如需支持新增档位，只需在 js 自定义源脚本里声明该档位的 quality key（即脚本上报的 `sources[平台].qualitys` 列表中加上对应字符串，并在 `musicUrl` 解析里处理该 `type`），App 端在搜索 / 播放 / 下载 / Hi-Res 选档全链路即可直接使用，无需改动客户端。**
-
----
-
-## 🎨 设计风格
-
-- **纯暗色主题**，主品牌色为绿色 `#4ADE80`（焦点光晕 / 选中态 / 进度 / 当前歌词），危险操作用红 `#EF5A6F`、软提示用琥珀 `#E8B341`、信息用蓝 `#61AFEF`。
-- **大屏 / 远距离阅读**：大圆角卡片、大封面、克制的层级与留白；各平台有独立标识色便于一眼区分来源。
-- **遥控器优先**：顶部导航 pill + 内容区 + 全屏播放器覆盖层；列表用 `focusRestorer()` 记忆焦点，`focusProperties` 约束方向键出口，弹窗设默认焦点，OK = 主操作 / 返回 = 关闭。
-- **动效**：焦点缩放 / 描边、黑胶旋转、歌词逐行滚动与渐隐聚焦当前行。
-
----
-
-## ⚙️ 设置说明
-
-所有设置都在顶部导航最右侧的 **设置（齿轮）** 里，改完即时生效、本地持久化。各项含义与默认值：
-
-| 设置项 | 作用 | 默认值 |
-|---|---|---|
-| **播放音质** | 全局**目标音质上限**。播放/下载时每首歌取「≤ 此档的最佳可用音质」，不支持则自动逐级降级（master → … → 128k）。 | `Hi-Res 24bit`（flac24bit） |
-| **音频硬件直通** | Hi-Res 音频经 DSP / HDMI 直通输出（audio offload），追求 bit-perfect。**部分电视（小米 / 鸿蒙 / 坚果等）音频驱动对此支持有缺陷，播放无损闪退时请关闭此项。** | 开 |
-| **发现页音源** | 推荐（首页）拉取数据用哪些平台，可多选开关（酷我 / 网易云 / 酷狗 / QQ）。至少保留一个。 | 四个全开 |
-| **内置直连兜底** | 自定义源脚本解析失败时，是否尝试 kw/wy 的内置直连兜底。 | 开 |
-| **歌词翻译** | 是否显示歌词的翻译行。 | 开 |
-| **歌词大小** | 全屏播放器歌词字号：标准 / 大 / 最大。 | 标准 |
-| **下载目录** | 下载保存位置：选一个存储卷（内部存储 / SD 卡 / U 盘），或用系统文件夹选择器（SAF）指定任意可浏览文件夹。切换只影响之后的下载。 | 应用专属音乐目录 |
-| **下载并发数** | 同时下载的最大歌曲数（批量下载时排队），范围 1–6，越大越快越占带宽。 | 3 |
-| **批量下载 · 已下载的也按新音质重下** | 歌单「下载全部」时，已下载但音质与所选不同的歌是否按新音质重下（如 128k 升级 FLAC）；关闭则一律跳过已下载。 | 开 |
-| **自定义音源** | 导入 / 启停 / 删除 lx-music v4 脚本：粘贴 URL、直接粘贴脚本、上传 `.js`、或手机扫码操作。 | — |
-
-> 常见操作速查：**改默认下载/播放音质** → 「播放音质」；**播无损歌曲闪退** → 先关「音频硬件直通」，仍闪退再把音质降到 320k；**推荐页只想看某个平台** → 「发现页音源」只留它；**下载太慢/想更快** → 「下载并发数」调大；**升级整张歌单的音质** → 确认「按新音质重下」开着，进歌单「下载全部」选高音质即可。
-
----
-
-## 🧩 自定义源（基于洛雪音乐 lx-music 协议）
-
-本项目保留并复刻了 **洛雪音乐（lx-music）v4 用户脚本协议**，可直接加载社区常见的 lx-music 自定义源脚本：
-
-- `source/js/JsScriptRuntime.kt` 用 `wang.harlon.quickjs:wrapper-android` 在 QuickJS 上下文中运行脚本，复刻预加载契约（`lx_setup` / `__lx_native__` / `__lx_native_call__*`）。
-- HTTP 请求由 `ScriptHttpClient`（OkHttp）原生执行，对齐 lx-music-mobile 的默认 UA / Content-Type / JSON 解析规则。
-- 加解密（AES / RSA / MD5 / Base64）通过 `CryptoBridge` 委托给随工程保留的 Java 辅助类。
-- 自定义脚本负责**播放地址 + 歌词**解析；搜索 / 排行榜 / 歌单为平台直连。
-
-**扩展点**：在原协议基础上，将音质体系从常见的 `128k / 320k / flac / flac24bit` **扩展到 8 级**（新增 `hires / atmos / atmos_plus / master`），并在搜索、播放、下载、Hi-Res 选档全链路打通这些扩展档位。脚本声明支持即可尝试，无需目录接口预先上报。
-
-导入方式：设置页粘贴脚本 URL / 直接粘贴脚本内容 / 上传 `.js` 文件 / 手机扫码操作。
-
----
-
-## 🛠 技术栈
-
-- **Kotlin** + **Jetpack Compose for TV**（`androidx.tv:tv-material`）
-- **Media3 ExoPlayer / Session**（后台播放 + MediaSession 遥控器控制，音视频共用同一 player）
-- **Coil**（封面加载）+ 本地 RenderScript 模糊
-- **OkHttp** + **kotlinx.serialization** + **Coroutines / StateFlow**
-- **QuickJS**（`wang.harlon.quickjs`）运行自定义源脚本
-- **NanoHTTPD** + **ZXing**（手机扫码 → 局域网推送输入）
-- **DataStore / filesDir JSON** 持久化；**DocumentFile (SAF)** 本地导入
-- 手写依赖容器 `AppContainer`（不引入 Hilt）
-
----
-
-## 📦 项目结构
-
-```
-app/src/main/java/com/walkman/tv/
-├── App.kt / MainActivity.kt          应用入口（QuickJSLoader + bootstrap）
-├── di/                               AppContainer（手写 DI）/ LocalServer（扫码输入）/ AppEvents
-├── data/model                        Track / SourceID / Quality / Playlist / Songlist / Downloads …
-├── data/store                        Library / Settings / Script / Download / LocalFolder / CoverCache
-├── crypto/AES.java + RSA.java        密码学辅助（被 JS 引擎调用）
-├── source/js                         JsScriptRuntime / ScriptHttpClient / CryptoBridge
-├── source/catalog                    各平台直连 API：搜索 / 排行榜 / 歌单 / MV
-├── source/builtin                    kw·wy 直连兜底 + 直连歌词
-├── source                            SourceManager（音质级联 + 换源）/ OtherSourceFinder
-├── playback                          PlaybackController (Media3) / 下载 / 本地扫描 / 在线歌单导入 / LyricParser
-├── ui                                RootScreen + TopNav + 各分区屏幕 + 全屏播放器 + 弹窗组件
-└── assets/script/user-api-preload.js QuickJS 预加载脚本
-```
-
----
-
-## 🚀 构建与运行
-
-环境：Android Studio（建议 JDK 17+），`compileSdk 36` / `minSdk 23` / `targetSdk 34`。
+从 **Releases** 下载 `baoge-tv-<版本>-arm64-v8a-release.apk`：
 
 ```bash
-# 1. 配置本机 SDK
-echo "sdk.dir=$ANDROID_HOME" > local.properties
-
-# 2. 构建调试包
-./gradlew assembleDebug
-
-# 3. 安装到 Android TV 设备 / 模拟器（建议 Android TV 1080p, API 34）
-./gradlew installDebug
+adb connect <电视IP>:5555
+adb install -r baoge-tv-1.4.7-arm64-v8a-release.apk
 ```
 
-正式打包（Release）：
+或用 U 盘拷到电视，用「文件管理器 / 安装包安装器」打开（首次需允许「未知来源」）。
+要求 **Android 6.0+（minSdk 23）**，ABI **arm64-v8a**。
+
+> 仓库内自构建的 release APK 默认使用 **debug 签名**（仅便于测试安装）。要正式签名，把
+> `release.keystore` + `keystore.properties` 放进 `app/`，或配置 GitHub Actions 的四个 Secrets。
+
+---
+
+## 六、从源码构建
 
 ```bash
-# 正式 Release APK（按 ABI 拆分，产物在 app/build/outputs/apk/release/）
+# 需要 JDK 17 + Android SDK
+git clone <this repo>
+cd <repo>
+echo "sdk.dir=/path/to/Android/sdk" > local.properties
 ./gradlew assembleRelease
-
-# 或打 Android App Bundle（上架用）
-./gradlew bundleRelease
+# 产物：app/build/outputs/apk/release/baoge-tv-<version>-arm64-v8a-release.apk
 ```
 
-> 正式签名：在仓库根目录放一个 `keystore.properties`（含 `storeFile` / `storePassword` / `keyAlias` / `keyPassword`，指向你的 `release.keystore`），`assembleRelease` 会自动用它签名。**未提供时会回落到 debug 签名**，产物依然可直接安装（仅用于自测，不要用于上架）。
+需要 32 位 / 通用包时，改 `app/build.gradle`：
 
-启动后落在「推荐」首页，方向键在导航 pill / 卡片 / 列表间移动焦点，OK 进入全屏播放器。
+```groovy
+splits {
+    abi {
+        enable true
+        reset()
+        include "arm64-v8a", "armeabi-v7a"
+        universalApk true
+    }
+}
+```
 
 ---
 
-## 📌 致谢与声明
+## 七、源码结构
 
-- 自定义源协议与预加载脚本来自 **[洛雪音乐 lx-music](https://github.com/lyswhut/lx-music-mobile)**，感谢其生态与社区脚本。本项目仅复刻其脚本运行契约以兼容现有自定义源，并未内置任何音源。
-- 本项目为**学习与个人使用**目的的开源播放器，不提供、不内置任何版权音频资源；所有内容均由用户自行导入的自定义源或公开接口提供。请在所在地法律允许的范围内使用，支持正版音乐。
-- 与上述任何音乐平台、洛雪音乐项目均无隶属或合作关系。
+```
+app/src/main/java/com/baogemusic/tv/
+├── App.kt / MainActivity.kt        入口、全局崩溃捕获
+├── data/
+│   ├── model/                      Track / Playlist / SourceID / Quality 等领域模型
+│   └── store/                      设置、收藏、下载、字体、歌手写真、调试报告等本地存储
+├── di/                             手写依赖容器 AppContainer、内置 HTTP 服务（扫码输入 / 调试下载）
+├── playback/                       ExoPlayer 控制器、歌词解析与抓取、均衡器、下载器、更新器
+│   └── download/                   下载协调、标签写入（ID3v2.4 / FLAC）
+├── source/                         音源：内置直连（catalog）、自定义脚本（js / QuickJS）、换源匹配
+└── ui/
+    ├── player/                     播放页（复刻网易舞台、全屏歌词特效、动效）
+    ├── settings/                   设置页（6 个一级页）
+    ├── recommend / search / library / leaderboard / songlist
+    ├── components/                 共用控件（卡片、胶囊、波形、模糊、对话框）
+    └── theme/                      配色与字体
+```
 
-## 📄 License
+关键入口：
 
-[Apache License 2.0](LICENSE)
+- 播放页：`ui/player/PlayerScreen.kt`
+- 设置：`ui/settings/SettingsScreen.kt`（路由）+ `SettingsPages.kt`（各页实现）
+- 播放控制：`playback/PlaybackController.kt`
+- 歌词：`playback/LyricsFetcher.kt` + `source/builtin/BuiltInLyricResolver.kt`
+- 歌手写真：`data/store/ArtistPhotoStore.kt`
+
+---
+
+## 八、已知问题与排查
+
+**播放时闪退？**
+
+1. 「设置 → 播放 → 音频解码」确认 **强制软件解码 = 开**、**Hi-Res 硬件直通 = 关**（升级后应已自动设置）；
+2. 「设置 → 关于与更新 → 调试 → 生成调试信息（扫码下载）」，把 `debug-report.txt` 提交到 Issues；
+3. 报告里的「操作轨迹」与 `logcat -b crash` 段能直接定位崩溃阶段与解码器名称。
+
+**没有歌词？**
+
+依次尝试：自定义源 → 同平台直连 → 按设置顺序换源 → 按歌名 + 歌手跨平台搜索（酷狗 → 网易云 → QQ）。
+若仍为空，多为该曲在各大平台都没有同步歌词（纯音乐 / 翻唱 / 现场版）。
+
+---
+
+## 九、免责声明
+
+- 本项目**不提供、不存储、不分发任何音频内容**，所有播放地址均由用户自行配置的第三方脚本解析；
+- 请仅用于**个人学习与技术研究**，不要在未获授权的情况下传播受版权保护的内容；
+- 因使用本项目产生的任何版权纠纷或法律风险，由使用者自行承担；
+- 与任何音乐平台、洛雪音乐项目均无隶属或合作关系。
+
+---
+
+## 十、致谢
+
+- 上游项目：[SincereXing/walkman-tv](https://github.com/SincereXing/walkman-tv) —— 本项目的全部架构与基础功能来源；
+- 自定义源协议：[lx-music](https://github.com/lyswhut/lx-music-desktop) v4 脚本规范；
+- 动效灵感：[BMMusicPlayer](https://github.com/birdmichael/BMMusicPlayer)、[ParticleView](https://github.com/MlxChange/ParticleView)；
+- 播放内核：AndroidX [Media3 / ExoPlayer](https://github.com/androidx/media)；
+- 字体：「小抖动侠情书」、「Aa祝你我明媚向春天」（非商业使用）。
+
+## 许可证
+
+[Apache-2.0](LICENSE)，与上游一致。二次修改与再分发请保留原始版权声明。

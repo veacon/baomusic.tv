@@ -723,8 +723,6 @@ internal fun ConnectPage(
     onQrScript: () -> Unit,
     onToggleScript: (UserScript) -> Unit,
     onDeleteScript: (UserScript) -> Unit,
-    onPickFont: () -> Unit,
-    onQrFont: () -> Unit,
     firstFocus: FocusRequester,
     modifier: Modifier = Modifier,
 ) {
