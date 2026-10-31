@@ -109,12 +109,12 @@ enum class PlayerFx(val label: String) {
 
 /** 全屏歌词特效（参考 YuMusic / QQ 音乐）：
  *  - NONE：常规两栏歌词；
- *  - SONNET（商籁）：全屏居中、逐句淡入的雅致歌词；
- *  - STARSEA（星海）：全屏星海背景 + 发光歌词，当前句最亮。 */
+ *  - LIGHT（光感）：全屏居中三行歌词 + 柔和暗角，逐句淡入（原「商籁」）；
+ *  - STARSEA（星海）：全屏深蓝星海背景 + 蓝白辉光歌词。 */
 @Serializable
 enum class FullscreenLyricFx(val label: String) {
     NONE("关闭"),
-    SONNET("商籁"),
+    @SerialName("SONNET") LIGHT("光感"),
     STARSEA("星海"),
 }
 
@@ -197,7 +197,7 @@ data class Settings(
     val discShape: DiscShape = DiscShape.CIRCLE,
     /** 播放页背景动效：关闭 / 动感波光 / 波纹特效 / 宇宙尘埃特效。 */
     val playerFx: PlayerFx = PlayerFx.WAVE,
-    /** 播放页全屏歌词特效：关闭 / 商籁 / 星海。 */
+    /** 播放页全屏歌词特效：关闭 / 光感 / 星海。 */
     val fullscreenLyricFx: FullscreenLyricFx = FullscreenLyricFx.NONE,
     /** 播放页唱片（封面）整体大小的缩放系数：0.5–3.0（步长 0.1，默认 1.0）。
      *  改动即时生效，封面、动效中心都会同步缩放。详见 [CoverScale]。 */

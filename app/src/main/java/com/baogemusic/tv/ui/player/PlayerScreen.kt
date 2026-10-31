@@ -327,31 +327,38 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
       }
     }
 
+    // 全屏歌词特效：铺满整屏（含左上角歌名 / 歌手）；底部控件在需要时浮出覆盖其上。
+    val fullscreenFx = settings.fullscreenLyricFx
+    if (fullscreenFx != FullscreenLyricFx.NONE) {
+      FullscreenLyricStage(
+        fx = fullscreenFx,
+        lyrics = lyrics,
+        positionMs = state.positionMs,
+        fontSp = activeSp,
+        lineFactor = lineFactor,
+        showTranslation = settings.showLyricTranslation,
+        fontFamily = lyricFont,
+        trackName = track.name,
+        artist = track.singer,
+        modifier = Modifier.fillMaxSize(),
+      )
+    }
+
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 32.dp)) {
-      // 主体：复刻网易舞台（左封面 + 右歌词）；若选了全屏歌词特效，用全屏歌词替代舞台。
-      Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-        if (settings.fullscreenLyricFx != FullscreenLyricFx.NONE) {
-          FullscreenLyricStage(
-            fx = settings.fullscreenLyricFx,
-            lyrics = lyrics,
-            positionMs = state.positionMs,
-            fontSp = activeSp,
-            lineFactor = lineFactor,
-            showTranslation = settings.showLyricTranslation,
-            fontFamily = lyricFont,
-            modifier = Modifier.fillMaxSize(),
-          )
-        } else {
+      if (fullscreenFx != FullscreenLyricFx.NONE) {
+        // 全屏歌词模式：封面 / 波形让位，只保留底部控制栏（自动隐藏）。
+        Spacer(Modifier.weight(1f))
+      } else {
+        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
           stage(Modifier.fillMaxSize())
         }
+        Spacer(Modifier.height(10.dp))
+        com.baogemusic.tv.ui.components.Waveform(
+          isPlaying = state.isPlaying,
+          level = audioLevel,
+          modifier = Modifier.fillMaxWidth().height(40.dp),
+        )
       }
-
-      Spacer(Modifier.height(10.dp))
-      com.baogemusic.tv.ui.components.Waveform(
-        isPlaying = state.isPlaying,
-        level = audioLevel,
-        modifier = Modifier.fillMaxWidth().height(40.dp),
-      )
       AnimatedVisibility(visible = controlsVisible) {
         Column {
           Spacer(Modifier.height(6.dp))
@@ -1707,11 +1714,11 @@ private fun CoverBackdrop(picURL: String?) {
   }
 }
 
-// ============== 全屏歌词特效（商籁 / 星海）=====================================================
+// ============== 全屏歌词特效（光感 / 星海）=====================================================
 
 /**
- * 全屏歌词特效（参考 YuMusic / QQ 音乐）：
- * - 商籁：雅致的居中三行歌词（上一句 / 当前句 / 下一句）+ 细线分隔 + 柔和暗角，逐句淡入；
+ * 全屏歌词特效（参考 YuMusic / QQ 音乐），铺满整屏，左上角显示歌名 / 歌手：
+ * - 光感：模糊专辑 + 柔和径向暗角，居中三行歌词，逐句淡入（无分隔线）；
  * - 星海：深蓝星海背景 + 漂浮星点，当前句发蓝白辉光。
  * 纯 Compose 绘制，切换当前句用淡入淡出。
  */
@@ -1724,118 +1731,150 @@ private fun FullscreenLyricStage(
   lineFactor: Float,
   showTranslation: Boolean,
   fontFamily: FontFamily?,
+  trackName: String,
+  artist: String,
   modifier: Modifier = Modifier,
 ) {
-  if (lyrics.isEmpty()) {
-    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-      Text("暂无歌词", color = AppColors.TextSecondary, fontSize = 18.sp)
-    }
-    return
-  }
   val active = LyricParser.activeIndex(positionMs / 1000.0, lyrics)
   val prev = lyrics.getOrNull(active - 1)
   val next = lyrics.getOrNull(active + 1)
   val starSea = fx == FullscreenLyricFx.STARSEA
   val activeColor = if (starSea) Color(0xFFC7E6FF) else AppColors.LyricActive
-  val glowRadius = if (starSea) 30f else 18f
+  val glowRadius = if (starSea) 34f else 20f
 
-  Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-    // 背景
+  Box(modifier.fillMaxSize()) {
+    // ---- 背景：铺满整屏 ----
     if (starSea) {
       StarField(Modifier.fillMaxSize())
     } else {
+      // 光感：径向暗角（中间透、四周压暗）+ 上下渐隐，突出中间歌词。
       Box(
         Modifier.fillMaxSize().background(
           Brush.radialGradient(
-            colors = listOf(Color.Transparent, AppColors.BgDeep.copy(alpha = 0.62f)),
+            colors = listOf(
+              Color.Transparent,
+              AppColors.BgDeep.copy(alpha = 0.40f),
+              AppColors.BgDeep.copy(alpha = 0.86f),
+            ),
+            radius = 2200f,
+          ),
+        ),
+      )
+      Box(
+        Modifier.fillMaxSize().background(
+          Brush.verticalGradient(
+            listOf(
+              AppColors.BgDeep.copy(alpha = 0.55f),
+              Color.Transparent,
+              AppColors.BgDeep.copy(alpha = 0.72f),
+            ),
           ),
         ),
       )
     }
 
-    Column(
-      horizontalAlignment = Alignment.CenterHorizontally,
-      modifier = Modifier.fillMaxWidth().padding(horizontal = 96.dp),
-    ) {
+    // ---- 左上角：歌名 + 歌手 ----
+    Column(modifier = Modifier.align(Alignment.TopStart).padding(start = 56.dp, top = 44.dp)) {
       Text(
-        prev?.text ?: "",
-        color = AppColors.TextMuted.copy(alpha = 0.45f),
-        fontSize = (fontSp * 0.52f).sp,
-        fontFamily = fontFamily,
+        trackName,
+        color = AppColors.TextPrimary,
+        fontSize = 26.sp,
+        fontWeight = FontWeight.Bold,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth(),
       )
-      Spacer(Modifier.height(16.dp))
-      if (!starSea) Hairline()
-      Spacer(Modifier.height(22.dp))
-
-      androidx.compose.animation.AnimatedContent(
-        targetState = active,
-        transitionSpec = {
-          androidx.compose.animation.fadeIn(tween(420)) togetherWith
-            androidx.compose.animation.fadeOut(tween(300))
-        },
-        label = "fullscreenLyric",
-      ) { idx ->
-        val l = lyrics.getOrNull(idx)
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-          Text(
-            l?.text ?: "",
-            color = activeColor,
-            fontSize = fontSp.sp,
-            lineHeight = (fontSp * lineFactor).sp,
-            fontFamily = fontFamily,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-            style = androidx.compose.ui.text.TextStyle(
-              shadow = androidx.compose.ui.graphics.Shadow(
-                color = activeColor.copy(alpha = 0.75f),
-                blurRadius = glowRadius,
-              ),
-            ),
-            modifier = Modifier.fillMaxWidth(),
-          )
-          l?.translation?.takeIf { showTranslation }?.let { t ->
-            Spacer(Modifier.height(10.dp))
-            Text(
-              t,
-              color = activeColor.copy(alpha = 0.72f),
-              fontSize = (fontSp * 0.5f).sp,
-              fontFamily = fontFamily,
-              textAlign = TextAlign.Center,
-              modifier = Modifier.fillMaxWidth(),
-            )
-          }
-        }
-      }
-
-      Spacer(Modifier.height(22.dp))
-      if (!starSea) Hairline()
-      Spacer(Modifier.height(16.dp))
+      Spacer(Modifier.height(6.dp))
       Text(
-        next?.text ?: "",
-        color = AppColors.TextMuted.copy(alpha = 0.35f),
-        fontSize = (fontSp * 0.46f).sp,
-        fontFamily = fontFamily,
+        artist,
+        color = AppColors.TextSecondary,
+        fontSize = 15.sp,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth(),
       )
     }
-  }
-}
 
-@Composable
-private fun Hairline() {
-  Box(
-    Modifier
-      .fillMaxWidth(0.5f)
-      .height(1.dp)
-      .background(Color.White.copy(alpha = 0.14f)),
-  )
+    // ---- 居中三行歌词 ----
+    if (lyrics.isEmpty()) {
+      Text(
+        "暂无歌词",
+        color = AppColors.TextSecondary,
+        fontSize = 18.sp,
+        modifier = Modifier.align(Alignment.Center),
+      )
+    } else {
+      Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+          .align(Alignment.Center)
+          .fillMaxWidth()
+          .padding(horizontal = 120.dp),
+      ) {
+        Text(
+          prev?.text ?: "",
+          color = AppColors.TextMuted.copy(alpha = 0.45f),
+          fontSize = (fontSp * 0.52f).sp,
+          fontFamily = fontFamily,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          textAlign = TextAlign.Center,
+          modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(30.dp))
+
+        androidx.compose.animation.AnimatedContent(
+          targetState = active,
+          transitionSpec = {
+            androidx.compose.animation.fadeIn(tween(420)) togetherWith
+              androidx.compose.animation.fadeOut(tween(300))
+          },
+          label = "fullscreenLyric",
+        ) { idx ->
+          val l = lyrics.getOrNull(idx)
+          Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+              l?.text ?: "",
+              color = activeColor,
+              fontSize = fontSp.sp,
+              lineHeight = (fontSp * lineFactor).sp,
+              fontFamily = fontFamily,
+              fontWeight = FontWeight.Bold,
+              textAlign = TextAlign.Center,
+              style = androidx.compose.ui.text.TextStyle(
+                shadow = androidx.compose.ui.graphics.Shadow(
+                  color = activeColor.copy(alpha = 0.78f),
+                  blurRadius = glowRadius,
+                ),
+              ),
+              modifier = Modifier.fillMaxWidth(),
+            )
+            l?.translation?.takeIf { showTranslation }?.let { t ->
+              Spacer(Modifier.height(10.dp))
+              Text(
+                t,
+                color = activeColor.copy(alpha = 0.72f),
+                fontSize = (fontSp * 0.5f).sp,
+                fontFamily = fontFamily,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+              )
+            }
+          }
+        }
+
+        Spacer(Modifier.height(30.dp))
+        Text(
+          next?.text ?: "",
+          color = AppColors.TextMuted.copy(alpha = 0.35f),
+          fontSize = (fontSp * 0.46f).sp,
+          fontFamily = fontFamily,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          textAlign = TextAlign.Center,
+          modifier = Modifier.fillMaxWidth(),
+        )
+      }
+    }
+  }
 }
 
 /** 星海背景：深蓝渐变 + 缓慢闪烁 / 漂浮的星点。 */

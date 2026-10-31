@@ -296,19 +296,6 @@ internal fun LyricPage(
             status?.let { Text(it, color = AppColors.TextSecondary, fontSize = 12.sp) }
         }
 
-        Section("全屏歌词特效") {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FullscreenLyricFx.entries.forEach { fx ->
-                    TvPill(
-                        onClick = { onUpdate { it.copy(fullscreenLyricFx = fx) } },
-                        selected = settings.fullscreenLyricFx == fx,
-                    ) { Text(fx.label, fontSize = 13.sp) }
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            HintText("全屏歌词特效（参考 YuMusic / QQ 音乐）：商籁为雅致的居中三行歌词 + 细线分隔；星海为深蓝星海背景 + 发光歌词。选择后播放页会以全屏歌词替代「封面 + 歌词」舞台。")
-        }
-
         Section("歌词翻译") {
             TvSwitchRow("显示歌词翻译（外语歌有翻译时在每句下方显示）", settings.showLyricTranslation) {
                 onUpdate { it.copy(showLyricTranslation = !it.showLyricTranslation) }
@@ -515,6 +502,19 @@ internal fun AppearancePage(
             }
             Spacer(Modifier.height(8.dp))
             HintText("动感波光是随音量向外扩散的柔和波纹；波纹特效是更厚、更慢的同心水波涟漪（参考 BMMusicPlayer）；宇宙尘埃特效是细碎尘埃 / 星点在背景中缓慢漂浮闪烁（参考 ParticleView）。三者均从封面中心向外延伸并跟随唱片左右位置，纯 Compose 绘制，老电视和投影仪也能跑。")
+        }
+
+        Section("全屏歌词特效") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FullscreenLyricFx.entries.forEach { fx ->
+                    TvPill(
+                        onClick = { onUpdate { it.copy(fullscreenLyricFx = fx) } },
+                        selected = settings.fullscreenLyricFx == fx,
+                    ) { Text(fx.label, fontSize = 13.sp) }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            HintText("光感：居中三行歌词 + 柔和暗角，逐句淡入；星海：深蓝星海背景 + 蓝白辉光歌词。开启后播放页进入全屏歌词，左上角显示歌名与歌手，底部控制栏仍会在按键时浮出。")
         }
 
         Section("歌单列数") {
