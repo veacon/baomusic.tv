@@ -39,6 +39,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
@@ -398,6 +400,20 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
             onToggleFav = { showPicker = true },
             onShowQueue = { showQueue = true },
             onTuneClick = { showEqDialog = true },
+            fullscreenLyricOn = fullscreenFx != FullscreenLyricFx.NONE,
+            onToggleFullscreenLyric = {
+              scope.launch {
+                appContainer.settingsStore.update { s ->
+                  s.copy(
+                    fullscreenLyricFx = when (s.fullscreenLyricFx) {
+                      FullscreenLyricFx.NONE -> FullscreenLyricFx.LIGHT
+                      FullscreenLyricFx.LIGHT -> FullscreenLyricFx.STARSEA
+                      FullscreenLyricFx.STARSEA -> FullscreenLyricFx.NONE
+                    },
+                  )
+                }
+              }
+            },
             playFocusRequester = playFocus,
             progressFocusRequester = progressFocus,
           )
@@ -734,6 +750,10 @@ private fun TransportBar(
   onToggleFav: () -> Unit,
   onShowQueue: () -> Unit,
   onTuneClick: () -> Unit,
+  /** 当前是否处于全屏歌词特效（非「关闭」）。用于切换图标的高亮与含义。 */
+  fullscreenLyricOn: Boolean = false,
+  /** 切换全屏歌词特效（关闭 → 光感 → 星海 → 关闭）。 */
+  onToggleFullscreenLyric: () -> Unit = {},
   playFocusRequester: FocusRequester? = null,
   progressFocusRequester: FocusRequester? = null,
 ) {
@@ -746,6 +766,7 @@ private fun TransportBar(
   val playFocus = playFocusRequester ?: remember { FocusRequester() }
   val nextFocus = remember { FocusRequester() }
   val faveFocus = remember { FocusRequester() }
+  val lyricsFocus = remember { FocusRequester() }
   val queueFocus = remember { FocusRequester() }
   // 播放页盖在主界面上，主界面的控件仍在下面参与焦点查找。交给系统按位置找的话，会找到被盖住的
   // 控件（比如推荐页迷你播放条的上一曲，#24），所以控制栏每个方向都写死。
@@ -852,7 +873,7 @@ private fun TransportBar(
         onClick = onToggleFav,
         modifier = Modifier.focusProperties {
           left = nextFocus
-          right = queueFocus
+          right = lyricsFocus
         },
       )
     }
@@ -861,12 +882,23 @@ private fun TransportBar(
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+      // 全屏歌词：关闭 → 光感 → 星海 → 关闭 循环切换。
+      IconPill(
+        if (fullscreenLyricOn) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen,
+        active = fullscreenLyricOn,
+        focusRequester = lyricsFocus,
+        onClick = onToggleFullscreenLyric,
+        modifier = Modifier.focusProperties {
+          left = faveFocus
+          right = queueFocus
+        },
+      )
       IconPill(
         Icons.AutoMirrored.Filled.QueueMusic,
         focusRequester = queueFocus,
         onClick = onShowQueue,
         modifier = Modifier.focusProperties {
-          left = faveFocus
+          left = lyricsFocus
           right = FocusRequester.Cancel
         },
       )
