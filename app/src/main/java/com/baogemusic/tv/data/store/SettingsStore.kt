@@ -257,6 +257,9 @@ data class Settings(
         com.baogemusic.tv.data.model.SourceID.WY,
         com.baogemusic.tv.data.model.SourceID.TX,
     ),
+    /** 更新代理：形如 `127.0.0.1:7890` 或 `socks5://192.168.1.5:1080`。
+     *  留空 = 直连（仍会自动尝试内置的 GitHub 镜像加速）。 */
+    val updateProxy: String = "",
     /** 设置结构版本，仅用于一次性迁移（见 [SettingsStore.loadAll]）。不要手动改。 */
     val schemaVersion: Int = 0,
 )

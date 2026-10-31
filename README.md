@@ -77,6 +77,7 @@
 **其他**
 
 - 关于页展示设备信息（机型 / 系统 / 内存 / 分辨率 / 密度）与**硬件音频解码格式**（只读，不可点击）；
+- **应用内检查更新 + 大陆网络代理**：默认指向本仓库 Releases；「关于与更新 → 更新网络」可填 `192.168.1.5:7890` 或 `socks5://host:1080`，并提供 Clash / Verge / SOCKS 的常用端口快捷键。留空则直连，并自动依次尝试内置的 GitHub 镜像加速（ghfast.top / gh-proxy.com / ghproxy.net）；
 - 唱片大小步进调节（0.5×–3.0×，默认 1.0×），封面与动效中心同步缩放；
 - 歌词新增**跨平台搜索兜底**：直接按「歌名 + 歌手」搜同名歌词。
 
@@ -153,7 +154,7 @@
 
 ```bash
 adb connect <电视IP>:5555
-adb install -r baoge-tv-1.4.7-arm64-v8a-release.apk
+adb install -r baoge-tv-1.0-arm64-v8a-release.apk
 ```
 
 或用 U 盘拷到电视，用「文件管理器 / 安装包安装器」打开（首次需允许「未知来源」）。
@@ -168,7 +169,7 @@ adb install -r baoge-tv-1.4.7-arm64-v8a-release.apk
 
 ```bash
 # 需要 JDK 17 + Android SDK
-git clone <this repo>
+git clone https://github.com/veacon/baomusic.tv
 cd <repo>
 echo "sdk.dir=/path/to/Android/sdk" > local.properties
 ./gradlew assembleRelease
@@ -232,6 +233,12 @@ app/src/main/java/com/baogemusic/tv/
 
 依次尝试：自定义源 → 同平台直连 → 按设置顺序换源 → 按歌名 + 歌手跨平台搜索（酷狗 → 网易云 → QQ）。
 若仍为空，多为该曲在各大平台都没有同步歌词（纯音乐 / 翻唱 / 现场版）。
+
+**检查更新一直失败？**
+
+GitHub 在大陆经常连不上。到「设置 → 关于与更新 → 更新网络」，填你自己代理的 `host:port`
+（同一局域网内可用电脑的 IP，例如 `192.168.1.5:7890`；SOCKS 写 `socks5://192.168.1.5:1080`）。
+代理只作用于「检查更新 / 下载安装包」，不影响歌曲播放。
 
 ---
 

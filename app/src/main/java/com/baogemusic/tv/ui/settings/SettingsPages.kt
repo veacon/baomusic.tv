@@ -890,7 +890,7 @@ internal fun AboutPage(
             HintText("自动探测本机 MediaCodec 硬件解码器得到的音频格式（AAC / MP3 / FLAC / Opus …）。仅供排查设备兼容性，无需操作。")
         }
 
-        UpdateSection(firstFocus)
+        UpdateSection(firstFocus, settings, onUpdate)
     }
 }
 
@@ -900,7 +900,11 @@ internal fun AboutPage(
  * re-entering Settings resumes wherever it was (e.g. keeps a "有新版本" result).
  */
 @Composable
-private fun UpdateSection(firstFocus: FocusRequester) {
+private fun UpdateSection(
+    firstFocus: FocusRequester,
+    settings: Settings,
+    onUpdate: ((Settings) -> Settings) -> Unit,
+) {
     val ctx = LocalContext.current
     val mgr = appContainer.updateManager
     val state by mgr.state.collectAsState()
@@ -969,6 +973,55 @@ private fun UpdateSection(firstFocus: FocusRequester) {
             focusRequester = firstFocus,
         ) { Text(actionLabel, fontSize = 14.sp) }
     }
+
+    // 大陆网络访问 GitHub 基本都需要代理：给几个常见端口做快捷胶囊，也可以自己填。
+    Section("更新网络（大陆加速）") {
+        Text(
+            "检查更新会访问 GitHub。若一直「检查失败」，可在这里填局域网内的代理地址。",
+            color = AppColors.TextMuted,
+            fontSize = 12.sp,
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            UpdateProxyPreset.entries.forEach { preset ->
+                TvPill(
+                    onClick = { onUpdate { it.copy(updateProxy = preset.value) } },
+                    selected = settings.updateProxy.trim() == preset.value,
+                ) { Text(preset.label, fontSize = 13.sp) }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        TvTextFieldHost(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(4.dp)) { fieldModifier ->
+            OutlinedTextField(
+                value = settings.updateProxy,
+                onValueChange = { v -> onUpdate { it.copy(updateProxy = v.trim()) } },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().then(fieldModifier),
+                placeholder = { Text("自定义：192.168.1.5:7890 或 socks5://192.168.1.5:1080", color = AppColors.TextMuted) },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = AppColors.TextPrimary,
+                    unfocusedTextColor = AppColors.TextPrimary,
+                    focusedBorderColor = AppColors.AccentGreen,
+                    unfocusedBorderColor = AppColors.Card,
+                    cursorColor = AppColors.AccentGreen,
+                ),
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        HintText(
+            "留空 = 直连，并自动依次尝试内置的 GitHub 镜像加速（ghfast.top / gh-proxy.com 等）。" +
+                "填了代理则所有检查与下载都走该代理；代理只用于「检查更新」，不影响歌曲播放。",
+        )
+    }
+}
+
+/** 「更新网络」里的快捷代理端口：Clash / Clash Verge / v2rayN 的常见默认值。 */
+private enum class UpdateProxyPreset(val label: String, val value: String) {
+    OFF("直连", ""),
+    CLASH("Clash 7890", "127.0.0.1:7890"),
+    VERGE("Verge 7897", "127.0.0.1:7897"),
+    SOCKS("SOCKS 1080", "socks5://127.0.0.1:1080"),
 }
 
 /** Per-tier Material icon — small visual cue alongside the displayName in the picker. */

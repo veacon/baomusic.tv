@@ -106,12 +106,25 @@
 - **新增 `logcat -b crash` 采集**：调试报告现在会带上 native 崩溃缓冲区（tombstone 摘要 + 调用栈），这是排查「无 Java 堆栈闪退」的关键。
 - **封面模糊加固**：`BlurTransformation` 复用同一个 RenderScript 上下文（原来每张封面新建一个，native 内存容易耗光），输入封顶 720px，且失败时退回未模糊图而不是抛异常。
 
-## 十二、构建产物
-- `app/build/outputs/apk/release/baoge-tv-1.4.7-arm64-v8a-release.apk`（约 29MB，仅 arm64-v8a；内置「小抖动侠情书」字体约占 3.5MB）。
+## 十二、1.0 首发：版本重置、仓库迁移、更新代理
+- **版本号重置为 1.0**：`versionName = "1.0"`，`versionCode = 100`。
+  - versionCode 没有用 1，是因为上游 1.4.7 的 versionCode 是 38；如果压到 1，已装老版本的用户会因
+    `INSTALL_FAILED_VERSION_DOWNGRADE` 装不上，只能先卸载。100 可以平滑覆盖升级。
+- **检查更新指向本项目仓库**：`UpdateManager` 的 `OWNER` / `REPO` 由 `SincereXing/walkman-tv`
+  改为 `veacon/baomusic.tv`，否则应用内更新会去拉上游版本。
+- **新增「更新网络（大陆加速）」**（设置 → 关于与更新）：
+  - 可填 `192.168.1.5:7890`（HTTP）、`socks5://192.168.1.5:1080`（SOCKS）、`http://host:port`；
+  - 提供「直连 / Clash 7890 / Verge 7897 / SOCKS 1080」四个快捷胶囊，遥控器点一下即可；
+  - 留空 = 直连，并自动依次尝试内置 GitHub 镜像（ghfast.top / gh-proxy.com / ghproxy.net / gh.ddlc.top）；
+  - 代理只作用于「检查更新 / 下载安装包」，不影响歌曲播放与歌词抓取。
+
+## 十三、构建产物
+- `app/build/outputs/apk/release/baoge-tv-1.0-arm64-v8a-release.apk`（约 29MB，仅 arm64-v8a；内置「小抖动侠情书」字体约占 3.5MB）。
 - 使用 debug 签名（仓库无 keystore）；如需正式签名，放入 `keystore.properties` + `release.keystore` 后重新构建。
 - **由于设置字段有破坏性变更，首次启动会恢复默认偏好**，需要重新调一次歌词字号 / 对齐等；升级后上述「默认值调整」会按新默认生效。
 
-## 十三、GitHub 上传前注意事项
-1. `UpdateManager.kt` 的 `OWNER` / `REPO` 改为你自己的 GitHub 仓库（否则应用内更新会去拉原项目）。
+## 十四、发布注意事项
+1. 仓库已固定为 `veacon/baomusic.tv`（`UpdateManager` 的 `OWNER` / `REPO`）；换仓库只需改这两行。
 2. 不要提交 `local.properties`、`*.keystore`、`build/` 目录（已在 `.gitignore` 内）。
-3. 上传的 Release APK 命名保持 `baoge-tv-<版本>-arm64-v8a-release.apk`，应用内更新器按 `-<abi>-` 自动匹配。
+3. Release 里的 APK 命名保持 `baoge-tv-<版本>-arm64-v8a-release.apk`，应用内更新器按 `-<abi>-` 自动匹配 ABI。
+4. 推 `v*` 标签会触发 `.github/workflows/release.yml` 自动构建并发布；也可以手动上传本地构建的 APK。

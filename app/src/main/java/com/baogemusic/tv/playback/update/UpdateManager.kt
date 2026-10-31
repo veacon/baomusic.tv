@@ -18,6 +18,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
+import java.net.InetSocketAddress
+import java.net.Proxy
 import java.util.concurrent.TimeUnit
 
 /** A GitHub release resolved to the one APK asset that fits this device's ABI. */
@@ -58,6 +60,17 @@ class UpdateManager(
     private val _state = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val state: StateFlow<UpdateState> = _state.asStateFlow()
 
+    /**
+     * 更新用的代理地址（`127.0.0.1:7890` / `socks5://host:1080`），空 = 直连。
+     * 由 [com.baogemusic.tv.di.AppContainer] 跟随设置同步；大陆网络查 GitHub 基本都要靠它。
+     */
+    @Volatile
+    var proxySpec: String = ""
+
+    /** 带代理的客户端；没配代理就是共享客户端。 */
+    private fun client(): OkHttpClient =
+        parseProxy(proxySpec)?.let { http.newBuilder().proxy(it).build() } ?: http
+
     /** Query GitHub for the latest release and compare against the installed version. Tries the
      *  official api.github.com first, then GitHub proxies (for mainland China where the official
      *  host is often blocked). */
@@ -75,7 +88,7 @@ class UpdateManager(
                         .header("User-Agent", UA)             // GitHub 403s requests without a UA
                         .header("Accept", "application/vnd.github+json")
                         .build()
-                    val body = http.newCall(req).execute().use { resp ->
+                    val body = client().newCall(req).execute().use { resp ->
                         if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
                         resp.body?.string() ?: throw IOException("空响应")
                     }
@@ -179,7 +192,7 @@ class UpdateManager(
     private fun downloadTo(url: String, dest: File, onProgress: (Float) -> Unit) {
         // Dedicated client: the shared one has a 25s callTimeout that would kill a big APK on
         // slow TV Wi-Fi. No call timeout here, generous read timeout instead.
-        val client = http.newBuilder()
+        val client = client().newBuilder()
             .callTimeout(0, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .build()
@@ -215,8 +228,10 @@ class UpdateManager(
 
     companion object {
         private const val TAG = "UpdateManager"
-        private const val OWNER = "SincereXing"
-        private const val REPO = "walkman-tv"
+
+        /** 本仓库（二改后的发布地址）。改仓库时只改这两行。 */
+        private const val OWNER = "veacon"
+        private const val REPO = "baomusic.tv"
         private const val UA = "baoge-tv-updater"
 
         // GitHub proxy prefixes for mainland China (official host is often blocked/slow). Prefix
@@ -232,6 +247,37 @@ class UpdateManager(
         private val API_PROXIES = listOf(
             "https://gh-proxy.com/",
         )
+
+        /**
+         * 解析用户填的代理地址。支持这几种写法：
+         *  - `127.0.0.1:7890`        → HTTP 代理
+         *  - `http://host:8080`      → HTTP 代理
+         *  - `socks5://host:1080`    → SOCKS 代理
+         *  - `user:pass@host:8080`   → 忽略账号密码部分（OkHttp 需要 Authenticator，这里不处理）
+         * 端口缺省时按 7890（HTTP）/ 1080（SOCKS）处理；解析不出来返回 null（= 直连）。
+         */
+        fun parseProxy(spec: String): Proxy? {
+            val trimmed = spec.trim()
+            if (trimmed.isEmpty()) return null
+            val isSocks = trimmed.startsWith("socks", ignoreCase = true)
+            val body = trimmed.substringAfter("://", trimmed).substringAfter('@')
+            if (body.isEmpty()) return null
+            val host: String
+            val portText: String
+            if (body.startsWith("[")) {
+                // IPv6 字面量：[::1]:7890
+                host = body.substringAfter('[').substringBefore(']')
+                portText = body.substringAfter("]:", "")
+            } else {
+                host = body.substringBefore(':')
+                portText = body.substringAfter(':', "")
+            }
+            if (host.isBlank()) return null
+            val port = portText.toIntOrNull()?.takeIf { it in 1..65535 }
+                ?: if (isSocks) 1080 else 7890
+            val type = if (isSocks) Proxy.Type.SOCKS else Proxy.Type.HTTP
+            return runCatching { Proxy(type, InetSocketAddress(host, port)) }.getOrNull()
+        }
 
         /** Dotted numeric compare: "1.3.10" > "1.3.2". Non-numeric parts count as 0. */
         fun isNewer(remote: String, current: String): Boolean {
