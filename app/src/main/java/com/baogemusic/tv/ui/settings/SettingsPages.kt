@@ -454,10 +454,11 @@ internal fun AppearancePage(
     SettingsPageScaffold(modifier) {
         Section("播放页布局") {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PlayerLayout.entries.forEach { layout ->
+                PlayerLayout.entries.forEachIndexed { index, layout ->
                     TvPill(
                         onClick = { onUpdate { it.copy(playerLayout = layout) } },
                         selected = settings.playerLayout == layout,
+                        modifier = if (index == 0) Modifier.focusRequester(firstFocus) else Modifier,
                     ) { Text(layout.label, fontSize = 13.sp) }
                 }
             }
