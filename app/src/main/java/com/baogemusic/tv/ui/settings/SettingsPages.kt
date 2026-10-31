@@ -129,13 +129,13 @@ internal fun PlaybackPage(
             TvSwitchRow("Hi-Res 硬件直通（播放无损闪退时请关闭）", settings.audioOffloadEnabled) {
                 onUpdate { it.copy(audioOffloadEnabled = !it.audioOffloadEnabled) }
             }
-            TvSwitchRow("强制软件解码（播放闪退或没声音时请开启，下一首起生效）", settings.forceSoftwareDecoding) {
+            TvSwitchRow("强制软件解码（默认开启，下一首起生效）", settings.forceSoftwareDecoding) {
                 onUpdate { it.copy(forceSoftwareDecoding = !it.forceSoftwareDecoding) }
             }
             Spacer(Modifier.height(8.dp))
             HintText(
-                "提示：Android 10 以下（API < 29）系统会忽略「硬件直通」以免部分老电视芯片的音频 offload " +
-                    "原生闪退；若仍闪退或无声，请开启「强制软件解码」。",
+                "默认已开启「强制软件解码」并关闭「硬件直通」——部分老电视芯片（Android 8 / MStar 等）走硬件解码 " +
+                    "或音频 offload 时会原生崩溃，表现为一按播放就闪退。只有确认自己的设备硬解稳定，才建议关掉软解。",
             )
         }
 
@@ -517,7 +517,7 @@ internal fun AppearancePage(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            HintText("光感：居中三行 + 柔和暗角；星海：深蓝星海 + 蓝白辉光；极光：流动极光光带 + 薄荷绿辉光；霓虹：赛博网格 + 青/品红霓虹；胶片：电影黑边 + 颗粒 + 底部字幕。开启后播放页进入全屏歌词，左上角显示歌名与歌手，底部控制栏按键时浮出。")
+            HintText("光感：居中三行 + 柔和暗角；星海：深蓝星海 + 蓝白辉光；胶片：以歌手写真为背景（自动从网易云获取，配合缓慢推近的电影镜头）+ 黑边 + 颗粒 + 底部字幕。开启后播放页进入全屏歌词，左上角显示歌名与歌手，底部控制栏按键时浮出。")
         }
 
         Section("歌单列数") {

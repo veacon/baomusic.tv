@@ -18,6 +18,8 @@ object DebugReport {
 
     private const val DIR = "debug"
     private const val MAX_CRASH_FILES = 10
+    private const val CRUMB_FILE = "breadcrumbs.txt"
+    private const val MAX_CRUMB_BYTES = 48 * 1024
 
     private fun dir(context: Context): File =
         File(context.filesDir, DIR).apply { runCatching { mkdirs() } }
@@ -61,6 +63,28 @@ object DebugReport {
         f
     }.getOrNull()
 
+    /**
+     * 操作轨迹（面包屑）：在关键步骤写一行到 `debug/breadcrumbs.txt`。
+     *
+     * 原生崩溃（SIGSEGV / 解码器 abort）发生在 JVM 之外，[recordCrash] 抓不到堆栈；
+     * 但只要崩溃前留下了轨迹，下次启动下载调试信息就能看出「死在哪个阶段」。
+     * 写入失败一律忽略，绝不因为它影响播放。
+     */
+    @Synchronized
+    fun breadcrumb(context: Context?, message: String) {
+        val ctx = context ?: return
+        runCatching {
+            val f = File(dir(ctx), CRUMB_FILE)
+            if (f.length() > MAX_CRUMB_BYTES) f.delete()
+            f.appendText("${SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(Date())}  $message\n")
+        }
+    }
+
+    /** 读取已记录的操作轨迹。 */
+    fun readBreadcrumbs(context: Context): String = runCatching {
+        File(dir(context), CRUMB_FILE).takeIf { it.exists() }?.readText().orEmpty()
+    }.getOrDefault("")
+
     /** 生成汇总报告（设备信息 + 设置 + 崩溃日志 + logcat 摘要），返回文件。 */
     fun build(context: Context, settingsJson: String): File = runCatching {
         val text = buildString {
@@ -90,6 +114,9 @@ object DebugReport {
             appendLine()
             appendLine("---- 当前设置 (JSON) ----")
             appendLine(settingsJson)
+            appendLine()
+            appendLine("---- 操作轨迹（崩溃前的最后步骤）----")
+            appendLine(readBreadcrumbs(context).ifBlank { "（暂无记录）" })
             appendLine()
             appendLine("---- 崩溃日志 ----")
             val crashFiles = dir(context).listFiles { f -> f.name.startsWith("crash-") }

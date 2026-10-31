@@ -96,6 +96,9 @@ class PlaybackController(
      *  fresh user-initiated queue. Distinct from [networkRetryCount], which retries one track. */
     private var consecutiveFailures: Int = 0
 
+    /** 解码失败自救只做一次（避免软解也失败时无限重试）。 */
+    private var softwareDecodeAutoHealTried: Boolean = false
+
     /**
      * Optional local-first URL resolver. When set, [playAt] checks it before going to
      * [SourceManager]. Wired by [com.baogemusic.tv.di.AppContainer] to point at
@@ -124,8 +127,9 @@ class PlaybackController(
     }
 
     /** 强制软件解码：只用系统自带的软件解码器（c2.android.* / OMX.google.*），绕开部分电视、盒子
-     *  厂商硬件解码器的闪退或无声问题。解码器在每次准备新歌时挑选，所以切换后从下一首开始生效。 */
-    @Volatile var forceSoftwareDecoding: Boolean = false
+     *  厂商硬件解码器的闪退或无声问题。解码器在每次准备新歌时挑选，所以切换后从下一首开始生效。
+     *  默认 true（与 [Settings.forceSoftwareDecoding] 一致），设置加载前也不会走硬解。 */
+    @Volatile var forceSoftwareDecoding: Boolean = true
 
     val player: ExoPlayer = buildPlayer(context.applicationContext, audioLevelProcessor, { forceSoftwareDecoding })
 
@@ -139,6 +143,14 @@ class PlaybackController(
             PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
             PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED,
             PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED,
+            PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+            PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
+            PlaybackException.ERROR_CODE_DECODING_FAILED,
+            PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED,
+        )
+
+        /** 解码器层面的失败：可以尝试「改用软件解码 + 重试」自救。 */
+        val DECODER_ISSUE_CODES = setOf(
             PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
             PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
             PlaybackException.ERROR_CODE_DECODING_FAILED,
@@ -301,16 +313,44 @@ class PlaybackController(
                     // A track actually started — clear the consecutive-failure streak.
                     consecutiveFailures = 0
                     _state.value = _state.value.copy(durationMs = player.duration.coerceAtLeast(0))
+                    com.baogemusic.tv.data.store.DebugReport.breadcrumb(
+                        appContext,
+                        "ready dur=${player.duration} sw=$forceSoftwareDecoding",
+                    )
                 }
             }
 
             override fun onPlayerError(error: PlaybackException) {
+                val track = _state.value.currentTrack
+                com.baogemusic.tv.data.store.DebugReport.breadcrumb(
+                    appContext,
+                    "playerError ${error.errorCodeName}: ${error.message?.take(160)}",
+                )
+                // 解码器层面的失败（初始化失败 / 解码失败 / AudioTrack 起不来）：先自动切到软件解码
+                // 再重试一次。老电视的硬解经常直接返回失败，这一步能把「一按播放就退」救回来。
+                if (track != null &&
+                    error.errorCode in DECODER_ISSUE_CODES &&
+                    !forceSoftwareDecoding &&
+                    !softwareDecodeAutoHealTried
+                ) {
+                    softwareDecodeAutoHealTried = true
+                    forceSoftwareDecoding = true
+                    android.util.Log.w(
+                        "PlaybackController",
+                        "decoder failure (${error.errorCodeName}); auto-switching to software decoding",
+                    )
+                    _state.value = _state.value.copy(
+                        warning = "硬件解码异常，已自动切换软件解码",
+                        error = null,
+                    )
+                    playAt(_state.value.index, qualityCap = lastAttemptedQuality)
+                    return
+                }
                 // Format/codec rejections are the "encrypted .mgg" / "actually MP3 not FLAC" case
                 // from spec §3 — re-cascade from one tier below the current attempt. Network /
                 // unauthorized errors get surfaced as-is.
                 val isFormatReject = error.errorCode in FORMAT_REJECT_CODES
                 val current = lastAttemptedQuality
-                val track = _state.value.currentTrack
                 if (isFormatReject && track != null && current != null && current != Quality.K128) {
                     val full = Quality.orderedHighToLow
                     val idx = full.indexOf(current)
@@ -403,6 +443,10 @@ class PlaybackController(
 
     fun playAt(index: Int, qualityCap: Quality? = null) {
         val track = _state.value.queue.getOrNull(index) ?: return
+        com.baogemusic.tv.data.store.DebugReport.breadcrumb(
+            appContext,
+            "playAt #$index «${track.name}» sw=${forceSoftwareDecoding} cap=${qualityCap?.key ?: "-"}",
+        )
         // Fresh attempt (no cap) clears the last-attempted memory + the network retry counter;
         // cascade retries (cap != null) keep them so [onPlayerError] can keep stepping down or
         // continue counting retries within the same logical attempt.
@@ -467,6 +511,10 @@ class PlaybackController(
                 networkRetryCount = 0
                 player.setMediaItem(item)
                 player.prepare()
+                com.baogemusic.tv.data.store.DebugReport.breadcrumb(
+                    appContext,
+                    "prepared ${r.quality.key} ${r.url.take(80)}",
+                )
                 // Fire the file-header probe so the badge can later clamp the claimed tier
                 // down if the bytes turn out to be lower-grade than the script reported.
                 // Spec §5.4: clear current spec first, run async, validate URL is still

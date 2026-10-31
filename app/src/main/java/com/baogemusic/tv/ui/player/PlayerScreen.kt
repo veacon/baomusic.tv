@@ -74,6 +74,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -331,6 +332,15 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
 
     // 全屏歌词特效：铺满整屏（含左上角歌名 / 歌手）；底部控件在需要时浮出覆盖其上。
     val fullscreenFx = settings.fullscreenLyricFx
+    // 「胶片」用歌手写真做背景：只在选中该特效时联网取一次（按歌手名缓存），切歌自动换图。
+    var artistPhoto by remember(track.id) { mutableStateOf<String?>(null) }
+    LaunchedEffect(fullscreenFx, track.id) {
+      artistPhoto = if (fullscreenFx == FullscreenLyricFx.CINEMA) {
+        appContainer.artistPhotos.photoFor(track)
+      } else {
+        null
+      }
+    }
     if (fullscreenFx != FullscreenLyricFx.NONE) {
       FullscreenLyricStage(
         fx = fullscreenFx,
@@ -342,6 +352,8 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
         fontFamily = lyricFont,
         trackName = track.name,
         artist = track.singer,
+        artistPhoto = artistPhoto,
+        coverPic = track.picURL,
         modifier = Modifier.fillMaxSize(),
       )
     }
@@ -408,9 +420,7 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
                     fullscreenLyricFx = when (s.fullscreenLyricFx) {
                       FullscreenLyricFx.NONE -> FullscreenLyricFx.LIGHT
                       FullscreenLyricFx.LIGHT -> FullscreenLyricFx.STARSEA
-                      FullscreenLyricFx.STARSEA -> FullscreenLyricFx.AURORA
-                      FullscreenLyricFx.AURORA -> FullscreenLyricFx.NEON
-                      FullscreenLyricFx.NEON -> FullscreenLyricFx.CINEMA
+                      FullscreenLyricFx.STARSEA -> FullscreenLyricFx.CINEMA
                       FullscreenLyricFx.CINEMA -> FullscreenLyricFx.NONE
                     },
                   )
@@ -1749,15 +1759,14 @@ private fun CoverBackdrop(picURL: String?) {
   }
 }
 
-// ============== 全屏歌词特效（光感 / 星海 / 极光 / 霓虹 / 胶片）=================================
+// ============== 全屏歌词特效（光感 / 星海 / 胶片）=============================================
 
 /**
- * 全屏歌词特效（参考 YuMusic / QQ 音乐 / Folia / aurora-player），铺满整屏，左上角显示歌名 / 歌手：
+ * 全屏歌词特效（参考 YuMusic / QQ 音乐），铺满整屏，左上角显示歌名 / 歌手：
  * - 光感：模糊专辑 + 柔和暗角，居中三行，逐句淡入；
  * - 星海：深蓝星海 + 漂浮星点，蓝白辉光；
- * - 极光：流动极光光带，薄荷绿辉光；
- * - 霓虹：赛博透视网格 + 扫描光，青/品红霓虹；
- * - 胶片：电影黑边 + 颗粒，底部字幕式歌词。
+ * - 胶片：歌手写真（网易云艺人宣传照）做背景，缓慢推近 + 电影黑边 + 颗粒，底部字幕式歌词；
+ *   取不到写真时回退到模糊专辑封面。
  */
 @Composable
 private fun FullscreenLyricStage(
@@ -1770,6 +1779,8 @@ private fun FullscreenLyricStage(
   fontFamily: FontFamily?,
   trackName: String,
   artist: String,
+  artistPhoto: String? = null,
+  coverPic: String? = null,
   modifier: Modifier = Modifier,
 ) {
   val active = LyricParser.activeIndex(positionMs / 1000.0, lyrics)
@@ -1778,15 +1789,11 @@ private fun FullscreenLyricStage(
   val cinema = fx == FullscreenLyricFx.CINEMA
   val activeColor = when (fx) {
     FullscreenLyricFx.STARSEA -> Color(0xFFC7E6FF)
-    FullscreenLyricFx.AURORA -> Color(0xFFB8FFE6)
-    FullscreenLyricFx.NEON -> Color(0xFF7BF0FF)
     FullscreenLyricFx.CINEMA -> Color.White
     else -> AppColors.LyricActive
   }
   val glowRadius = when (fx) {
     FullscreenLyricFx.STARSEA -> 34f
-    FullscreenLyricFx.AURORA -> 30f
-    FullscreenLyricFx.NEON -> 42f
     FullscreenLyricFx.CINEMA -> 26f
     else -> 20f
   }
@@ -1795,9 +1802,12 @@ private fun FullscreenLyricStage(
     // ---- 背景：铺满整屏 ----
     when (fx) {
       FullscreenLyricFx.STARSEA -> StarField(Modifier.fillMaxSize())
-      FullscreenLyricFx.AURORA -> AuroraBackdrop(Modifier.fillMaxSize())
-      FullscreenLyricFx.NEON -> NeonBackdrop(Modifier.fillMaxSize())
-      FullscreenLyricFx.CINEMA -> CinemaBackdrop(Modifier.fillMaxSize())
+      FullscreenLyricFx.CINEMA -> CinemaBackdrop(
+        photoUrl = artistPhoto ?: coverPic,
+        // 写真没取到时，模糊封面比纯黑更像「电影感」。
+        blurWhenPhoto = artistPhoto == null,
+        modifier = Modifier.fillMaxSize(),
+      )
       else -> {
         // 光感：径向暗角（中间透、四周压暗）+ 上下渐隐，突出中间歌词。
         Box(
@@ -1903,7 +1913,7 @@ private fun FullscreenLyricStage(
         }
       }
     } else {
-      // ---- 居中三行（光感 / 星海 / 极光 / 霓虹）----
+      // ---- 居中三行（光感 / 星海）----
       Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -2014,132 +2024,19 @@ private fun StarField(modifier: Modifier = Modifier) {
   }
 }
 
-/** 极光：多条流动的极光光带，从深色底向上透出。 */
+/**
+ * 胶片：歌手写真（网易云艺人宣传照）做背景，配合缓慢推近的「肯·伯恩斯」镜头 + 上下电影黑边 +
+ * 细颗粒 + 纵向暗角，歌词走底部字幕。
+ *
+ * [photoUrl] 是写真地址；没取到写真时调用方会退一步传模糊封面并置 [blurWhenPhoto]，
+ * 两者都没有就落到纯黑底，保证任何情况下都能播放。
+ */
 @Composable
-private fun AuroraBackdrop(modifier: Modifier = Modifier) {
-  val transition = rememberInfiniteTransition(label = "auroraFx")
-  val t by transition.animateFloat(
-    initialValue = 0f,
-    targetValue = 1f,
-    animationSpec = infiniteRepeatable(animation = tween(durationMillis = 18_000, easing = LinearEasing)),
-    label = "auroraTime",
-  )
-  androidx.compose.foundation.Canvas(
-    modifier = modifier.fillMaxSize().graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen },
-  ) {
-    if (size.minDimension <= 0f) return@Canvas
-    drawRect(
-      brush = Brush.verticalGradient(
-        listOf(Color(0xFF04101C), Color(0xFF071826), Color(0xFF0A1020)),
-      ),
-    )
-    val colors = listOf(Color(0xFF22E0A8), Color(0xFF3AA6FF), Color(0xFF9B6BFF))
-    for (i in 0 until 3) {
-      val phase = t * 2f * PI.toFloat() + i * 2.1f
-      val cx = size.width * (0.30f + i * 0.20f)
-      val halfW = size.width * (0.10f + i * 0.02f)
-      val path = Path()
-      val steps = 26
-      for (s in 0..steps) {
-        val yy = size.height * s / steps
-        val off = sin(yy / size.height * 4.2f + phase) * size.width * 0.055f
-        val x = cx + off - halfW
-        if (s == 0) path.moveTo(x, yy) else path.lineTo(x, yy)
-      }
-      for (s in steps downTo 0) {
-        val yy = size.height * s / steps
-        val off = sin(yy / size.height * 4.2f + phase) * size.width * 0.055f
-        path.lineTo(cx + off + halfW, yy)
-      }
-      path.close()
-      drawPath(
-        path = path,
-        brush = Brush.verticalGradient(
-          listOf(Color.Transparent, colors[i].copy(alpha = 0.22f), Color.Transparent),
-        ),
-        blendMode = BlendMode.Screen,
-      )
-    }
-    // 顶部光晕
-    val r = size.height * 0.55f
-    drawCircle(
-      brush = Brush.radialGradient(
-        colors = listOf(Color(0xFF3AA6FF).copy(alpha = 0.10f), Color.Transparent),
-        center = Offset(size.width * 0.5f, 0f),
-        radius = r,
-      ),
-      radius = r,
-      center = Offset(size.width * 0.5f, 0f),
-      blendMode = BlendMode.Screen,
-    )
-  }
-}
-
-/** 霓虹：赛博透视网格 + 扫描光，青 / 品红低饱和点缀。 */
-@Composable
-private fun NeonBackdrop(modifier: Modifier = Modifier) {
-  val transition = rememberInfiniteTransition(label = "neonFx")
-  val t by transition.animateFloat(
-    initialValue = 0f,
-    targetValue = 1f,
-    animationSpec = infiniteRepeatable(animation = tween(durationMillis = 10_000, easing = LinearEasing)),
-    label = "neonTime",
-  )
-  androidx.compose.foundation.Canvas(
-    modifier = modifier.fillMaxSize().graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen },
-  ) {
-    if (size.minDimension <= 0f) return@Canvas
-    drawRect(
-      brush = Brush.verticalGradient(
-        listOf(Color(0xFF07060F), Color(0xFF0B0A1A), Color(0xFF05040C)),
-      ),
-    )
-    val horizon = size.height * 0.62f
-    val cyan = Color(0xFF6FF3FF)
-    val magenta = Color(0xFFFF4FD8)
-    val pulse = 0.10f + 0.05f * sin(t * 2f * PI.toFloat())
-    // 竖线：向消失点汇聚
-    val vCount = 14
-    for (i in -vCount..vCount) {
-      val xTop = size.width * 0.5f + i * size.width * 0.006f
-      val xBottom = size.width * 0.5f + i * (size.width / vCount)
-      drawLine(
-        color = cyan.copy(alpha = pulse),
-        start = Offset(xTop, horizon),
-        end = Offset(xBottom, size.height),
-        strokeWidth = 1.2f,
-      )
-    }
-    // 横线：越往下越疏
-    val hCount = 10
-    for (i in 1..hCount) {
-      val p = i.toFloat() / hCount
-      val y = horizon + (size.height - horizon) * (p * p)
-      drawLine(
-        color = magenta.copy(alpha = pulse * 0.8f),
-        start = Offset(0f, y),
-        end = Offset(size.width, y),
-        strokeWidth = 1f,
-      )
-    }
-    // 中心霓虹光晕
-    val r = size.minDimension * 0.55f
-    drawCircle(
-      brush = Brush.radialGradient(
-        colors = listOf(cyan.copy(alpha = 0.10f), Color.Transparent),
-        center = Offset(size.width * 0.5f, horizon * 0.75f),
-        radius = r,
-      ),
-      radius = r,
-      center = Offset(size.width * 0.5f, horizon * 0.75f),
-      blendMode = BlendMode.Screen,
-    )
-  }
-}
-
-/** 胶片：上下电影黑边 + 细颗粒 + 纵向暗角。 */
-@Composable
-private fun CinemaBackdrop(modifier: Modifier = Modifier) {
+private fun CinemaBackdrop(
+  photoUrl: String?,
+  blurWhenPhoto: Boolean,
+  modifier: Modifier = Modifier,
+) {
   val transition = rememberInfiniteTransition(label = "cinemaFx")
   val t by transition.animateFloat(
     initialValue = 0f,
@@ -2147,33 +2044,95 @@ private fun CinemaBackdrop(modifier: Modifier = Modifier) {
     animationSpec = infiniteRepeatable(animation = tween(durationMillis = 7_000, easing = LinearEasing)),
     label = "cinemaTime",
   )
+  // 肯·伯恩斯镜头：20 秒推到 1.08 倍再拉回，慢到几乎察觉不到，但有呼吸感。
+  val kenBurns by transition.animateFloat(
+    initialValue = 1f,
+    targetValue = 1.08f,
+    animationSpec = infiniteRepeatable(
+      animation = tween(durationMillis = 20_000, easing = LinearEasing),
+      repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
+    ),
+    label = "cinemaKenBurns",
+  )
   val grain = remember {
     val rnd = kotlin.random.Random(99)
     List(90) { floatArrayOf(rnd.nextFloat(), rnd.nextFloat(), 0.4f + rnd.nextFloat() * 1.6f, rnd.nextFloat()) }
   }
-  androidx.compose.foundation.Canvas(
-    modifier = modifier.fillMaxSize().graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen },
-  ) {
-    if (size.minDimension <= 0f) return@Canvas
-    drawRect(Color(0xFF050506))
-    for (g in grain) {
-      val a = (0.02f + 0.05f * abs(sin((t * g[2] + g[3]) * 2f * PI.toFloat()))).coerceIn(0f, 1f)
-      drawCircle(
-        color = Color.White.copy(alpha = a),
-        radius = g[2] * 1.3f,
-        center = Offset(g[0] * size.width, g[1] * size.height),
+
+  Box(modifier.fillMaxSize()) {
+    // ---- 底层：写真 / 模糊封面 / 纯黑 ----
+    if (!photoUrl.isNullOrBlank()) {
+      val context = androidx.compose.ui.platform.LocalContext.current
+      coil.compose.AsyncImage(
+        model = coil.request.ImageRequest.Builder(context)
+          .data(photoUrl)
+          .apply {
+            if (blurWhenPhoto) {
+              transformations(
+                com.baogemusic.tv.ui.components.BlurTransformation(context, radius = 25f, sampling = 2f),
+              )
+            }
+          }
+          .crossfade(700)
+          .build(),
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier
+          .fillMaxSize()
+          .graphicsLayer {
+            scaleX = kenBurns
+            scaleY = kenBurns
+          },
+      )
+      // 压暗 + 底部加重：写真再亮，字幕也得看得清。
+      Box(
+        Modifier.fillMaxSize().background(
+          Brush.verticalGradient(
+            0f to Color.Black.copy(alpha = 0.58f),
+            0.34f to Color.Black.copy(alpha = 0.16f),
+            0.70f to Color.Black.copy(alpha = 0.48f),
+            1f to Color.Black.copy(alpha = 0.90f),
+          ),
+        ),
+      )
+      // 轻微冷调，更像电影调色
+      Box(
+        Modifier.fillMaxSize().background(
+          Brush.horizontalGradient(
+            listOf(Color(0xFF0A1420).copy(alpha = 0.18f), Color.Transparent, Color(0xFF160E0A).copy(alpha = 0.16f)),
+          ),
+        ),
+      )
+    } else {
+      Box(Modifier.fillMaxSize().background(Color(0xFF050506)))
+    }
+
+    // ---- 上层：颗粒 + 黑边 + 暗角（不画不透明底色，以免盖住写真）----
+    androidx.compose.foundation.Canvas(
+      modifier = Modifier
+        .fillMaxSize()
+        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen },
+    ) {
+      if (size.minDimension <= 0f) return@Canvas
+      for (g in grain) {
+        val a = (0.02f + 0.05f * abs(sin((t * g[2] + g[3]) * 2f * PI.toFloat()))).coerceIn(0f, 1f)
+        drawCircle(
+          color = Color.White.copy(alpha = a),
+          radius = g[2] * 1.3f,
+          center = Offset(g[0] * size.width, g[1] * size.height),
+        )
+      }
+      // 上下电影黑边
+      val bar = size.height * 0.10f
+      drawRect(Color.Black, topLeft = Offset(0f, 0f), size = Size(size.width, bar))
+      drawRect(Color.Black, topLeft = Offset(0f, size.height - bar), size = Size(size.width, bar))
+      // 纵向暗角
+      drawRect(
+        brush = Brush.verticalGradient(
+          listOf(Color.Black.copy(alpha = 0.30f), Color.Transparent, Color.Black.copy(alpha = 0.42f)),
+        ),
       )
     }
-    // 上下电影黑边
-    val bar = size.height * 0.10f
-    drawRect(Color.Black, topLeft = Offset(0f, 0f), size = Size(size.width, bar))
-    drawRect(Color.Black, topLeft = Offset(0f, size.height - bar), size = Size(size.width, bar))
-    // 纵向暗角
-    drawRect(
-      brush = Brush.verticalGradient(
-        listOf(Color.Black.copy(alpha = 0.35f), Color.Transparent, Color.Black.copy(alpha = 0.45f)),
-      ),
-    )
   }
 }
 

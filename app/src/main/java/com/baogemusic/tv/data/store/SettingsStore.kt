@@ -7,8 +7,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import java.io.File
 import kotlin.math.roundToInt
 
@@ -107,21 +112,38 @@ enum class PlayerFx(val label: String) {
     DUST("宇宙尘埃特效"),
 }
 
-/** 全屏歌词特效（参考 YuMusic / QQ 音乐 / Folia / aurora-player）：
+/** 全屏歌词特效（参考 YuMusic / QQ 音乐）：
  *  - NONE：常规两栏歌词；
  *  - LIGHT（光感）：全屏居中三行歌词 + 柔和暗角，逐句淡入（原「商籁」）；
  *  - STARSEA（星海）：全屏深蓝星海背景 + 蓝白辉光歌词；
- *  - AURORA（极光）：流动的极光光带背景 + 薄荷绿辉光歌词；
- *  - NEON（霓虹）：赛博网格 + 扫描光，青/品红霓虹歌词；
- *  - CINEMA（胶片）：电影黑边 + 颗粒，底部字幕式歌词。 */
-@Serializable
+ *  - CINEMA（胶片）：歌手写真做背景（肯·伯恩斯缓慢推近）+ 电影黑边 + 颗粒，底部字幕式歌词。
+ *  已下线的「极光 AURORA」「霓虹 NEON」由 [FullscreenLyricFxSerializer] 兜底降级为光感，
+ *  老存档不会因为枚举值消失而整份设置被重置。 */
+@Serializable(with = FullscreenLyricFxSerializer::class)
 enum class FullscreenLyricFx(val label: String) {
     NONE("关闭"),
-    @SerialName("SONNET") LIGHT("光感"),
+    LIGHT("光感"),
     STARSEA("星海"),
-    AURORA("极光"),
-    NEON("霓虹"),
     CINEMA("胶片"),
+}
+
+/** 手写枚举序列化器：按名字存，读取时把历史/已下线的值映射到现存项。 */
+object FullscreenLyricFxSerializer : KSerializer<FullscreenLyricFx> {
+    override val descriptor =
+        PrimitiveSerialDescriptor("FullscreenLyricFx", PrimitiveKind.STRING)
+
+    override fun serialize(encoder: Encoder, value: FullscreenLyricFx) {
+        encoder.encodeString(value.name)
+    }
+
+    override fun deserialize(decoder: Decoder): FullscreenLyricFx {
+        return when (val raw = decoder.decodeString()) {
+            // 已下线或历史命名 → 光感
+            "SONNET", "AURORA", "NEON" -> FullscreenLyricFx.LIGHT
+            else -> FullscreenLyricFx.entries.firstOrNull { it.name == raw }
+                ?: FullscreenLyricFx.NONE
+        }
+    }
 }
 
 /** 歌单 / 我的页面的卡片列数。列数越多卡片越小。 */
@@ -173,13 +195,12 @@ data class Settings(
     val preferredQuality: Quality = Quality.FLAC24,
     val fallbackEnabled: Boolean = true,
     /** Audio offload (DSP direct path / HDMI passthrough). Bit-perfect Hi-Res on good HALs,
-     *  but some vendor HALs (小米/鸿蒙/坚果 etc.) crash natively in the offload path — the
-     *  settings toggle lets affected users turn it off. Default on so existing users keep
-     *  the current behaviour. */
-    val audioOffloadEnabled: Boolean = true,
+     *  but some vendor HALs (小米/鸿蒙/坚果、以及 Android 8 的 MStar/m7221 等) 声称支持却在 native
+     *  层崩溃，所以默认关闭；只有用户主动打开才会启用。 */
+    val audioOffloadEnabled: Boolean = false,
     /** 强制软件解码（音频）。部分电视、盒子的硬件解码器会闪退或没声音，开启后只用系统软件解码器，
-     *  同时关闭硬件直通。默认关闭。 */
-    val forceSoftwareDecoding: Boolean = false,
+     *  同时关闭硬件直通。**默认开启**：稳定性优先，牺牲一点 Hi-Res 直通。 */
+    val forceSoftwareDecoding: Boolean = true,
     val showLyricTranslation: Boolean = true,
     /** 歌词当前行字号（sp，绝对值，如 45）。设置页直接以数值显示，步进 1。 */
     val lyricFontSizeSp: Int = LyricFont.DEFAULT,
@@ -235,6 +256,8 @@ data class Settings(
         com.baogemusic.tv.data.model.SourceID.WY,
         com.baogemusic.tv.data.model.SourceID.TX,
     ),
+    /** 设置结构版本，仅用于一次性迁移（见 [SettingsStore.loadAll]）。不要手动改。 */
+    val schemaVersion: Int = 0,
 )
 
 /** App preferences persisted as JSON. */
@@ -249,11 +272,32 @@ class SettingsStore(context: Context) {
     val settings: StateFlow<Settings> = _settings.asStateFlow()
 
     suspend fun loadAll() {
-        _settings.value = withContext(Dispatchers.IO) { store.load() }
+        val loaded = withContext(Dispatchers.IO) { store.load() }
+        // 一次性迁移：v1 起「强制软件解码」默认开启、硬件直通默认关闭。
+        // 已装过旧版本的机器里存的是 false，光改默认值对它们无效，必须在这里改写一次，
+        // 否则老电视（Android 8 / MStar 等）升级后仍会一按播放就闪退。
+        val migrated = if (loaded.schemaVersion < SCHEMA_SOFTWARE_DECODE) {
+            loaded.copy(
+                forceSoftwareDecoding = true,
+                audioOffloadEnabled = false,
+                schemaVersion = SCHEMA_SOFTWARE_DECODE,
+            )
+        } else {
+            loaded
+        }
+        _settings.value = migrated
+        if (migrated != loaded) {
+            withContext(Dispatchers.IO) { store.save(migrated) }
+        }
     }
 
     suspend fun update(transform: (Settings) -> Settings) {
         _settings.value = transform(_settings.value)
         withContext(Dispatchers.IO) { store.save(_settings.value) }
+    }
+
+    private companion object {
+        /** 迁移版本号：1 = 强制软件解码默认开 + 硬件直通默认关。 */
+        const val SCHEMA_SOFTWARE_DECODE = 1
     }
 }

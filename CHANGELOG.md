@@ -81,12 +81,25 @@
   - 播放页特效 Canvas 增加零尺寸保护，避免 `Brush.radialGradient` 半径为 0 时抛异常；唱片大小在使用处再做一次范围钳制。
 - **调试信息扫码下载**：新增「关于与更新 → 调试 → 生成调试信息（扫码下载）」。手机扫码或访问 `http://电视IP:端口/debug` 即可下载文本报告，包含：版本、机型 / 系统 / ABI、硬件音频解码能力、当前设置 JSON、最近崩溃堆栈、近期 logcat。内置手机助手首页也新增「🐞 下载调试信息」入口。
 
-## 十、构建产物
+## 十、全屏歌词精简 + 胶片歌手写真 + 软件解码默认开启
+- **全屏歌词减到 3 种**：下线「极光」「霓虹」，保留 **光感 / 星海 / 胶片**；控制栏图标循环改为「关闭 → 光感 → 星海 → 胶片」。
+  - 旧存档里存过 `AURORA` / `NEON` / `SONNET` 的，由新的 `FullscreenLyricFxSerializer` 兜底降级为「光感」，不会因为枚举值消失导致整份设置被重置。
+- **胶片改为歌手写真背景**：新增 `ArtistPhotoStore`，从网易云公开接口取歌手写真（`/api/song/detail` → 歌手 id → `/api/artist/{id}` 的 `img1v1Url`；非网易云曲目先按「歌名 + 歌手」搜索匹配）。
+  - 背景做了「肯·伯恩斯」缓慢推近（20s 推到 1.08× 再拉回）+ 压暗与冷调 + 电影黑边 + 颗粒 + 暗角，歌词仍是底部字幕式。
+  - 取不到写真时自动回退到模糊专辑封面，再没有就纯黑底；`img1v1Id == 0` 的默认灰头像会被判掉。
+  - 结果按歌手名缓存在内存 + `filesDir/artist_photos.json`（上限 400 条），同一歌手的所有歌共用一张，只在选中「胶片」时才联网。
+- **强制软件解码默认开启**：`forceSoftwareDecoding` 默认 true、`audioOffloadEnabled` 默认 false。
+  - 通过 `Settings.schemaVersion` 做一次性迁移（v1）：**已升级的旧安装也会被强制切到软件解码**，不只是全新安装生效。
+  - 解码器层面失败（`DECODER_INIT_FAILED` / `DECODING_FAILED` / `AUDIO_TRACK_INIT_FAILED` 等）时自动切软件解码并重试一次。
+- **新增崩溃前的操作轨迹（breadcrumbs）**：`playAt` / `prepare` / `ready` / `playerError` 各写一行到 `filesDir/debug/breadcrumbs.txt`，并纳入调试报告。
+  - 原生崩溃（SIGSEGV、解码器 abort）抓不到 Java 堆栈，但轨迹能看出死在「解析地址 → 准备 → 解码」的哪一步。
+
+## 十一、构建产物
 - `app/build/outputs/apk/release/baoge-tv-1.4.7-arm64-v8a-release.apk`（约 29MB，仅 arm64-v8a；内置「小抖动侠情书」字体约占 3.5MB）。
 - 使用 debug 签名（仓库无 keystore）；如需正式签名，放入 `keystore.properties` + `release.keystore` 后重新构建。
 - **由于设置字段有破坏性变更，首次启动会恢复默认偏好**，需要重新调一次歌词字号 / 对齐等；升级后上述「默认值调整」会按新默认生效。
 
-## 十一、GitHub 上传前注意事项
+## 十二、GitHub 上传前注意事项
 1. `UpdateManager.kt` 的 `OWNER` / `REPO` 改为你自己的 GitHub 仓库（否则应用内更新会去拉原项目）。
 2. 不要提交 `local.properties`、`*.keystore`、`build/` 目录（已在 `.gitignore` 内）。
 3. 上传的 Release APK 命名保持 `baoge-tv-<版本>-arm64-v8a-release.apk`，应用内更新器按 `-<abi>-` 自动匹配。
