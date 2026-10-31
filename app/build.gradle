@@ -35,13 +35,17 @@ android {
     // modern Android TVs (2018+), armeabi-v7a covers older 32-bit chassis, x86_64 is for the
     // Android TV emulator. Universal bundles all three so a user who doesn't know their TV's
     // ABI can still install something. Each per-ABI APK is ~30% the size of the fat universal.
-    // 只出 arm64-v8a（现代电视/盒子都是这个 ABI），不再打通用包和 32 位包——体积更小、构建更快。
+    // 四种产物：
+    //  - baoge-tv-<v>-arm64-v8a-release.apk   现代电视 / 盒子（2018 年后基本全是）
+    //  - baoge-tv-<v>-armeabi-v7a-release.apk 老 32 位芯片（部分 2015 年前后的电视、老盒子）
+    //  - baoge-tv-<v>-x86_64-release.apk      Android TV 模拟器 / x86 小主机
+    //  - baoge-tv-<v>-universal-release.apk   三种 ABI 全打包，不知道自己是哪种就装这个
     splits {
         abi {
             enable true
             reset()
-            include "arm64-v8a"
-            universalApk false
+            include "arm64-v8a", "armeabi-v7a", "x86_64"
+            universalApk true
         }
     }
 

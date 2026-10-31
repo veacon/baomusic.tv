@@ -234,18 +234,21 @@ class UpdateManager(
         private const val REPO = "baomusic.tv"
         private const val UA = "baoge-tv-updater"
 
-        // GitHub proxy prefixes for mainland China (official host is often blocked/slow). Prefix
-        // form: "<proxy>/https://github.com/...". Verified reachable at release time; if one dies
-        // the manager just falls through to the next. Download proxies front release binaries;
-        // API_PROXIES additionally proxy api.github.com JSON (fewer of them do).
+        // GitHub 加速镜像前缀（大陆直连 github.com / api.github.com 经常超时）。用法是把原始
+        // URL 拼在前缀后面："<proxy>/https://github.com/..."。按顺序逐个尝试，前一个失败自动落到
+        // 下一个，全失败才报错 —— 所以这里可以放心多放几个。
+        //
+        // DOWNLOAD_PROXIES 用于 release 二进制（APK）下载；
+        // API_PROXIES 用于 api.github.com 的 JSON（能代理 API 的镜像比较少，只放确认可用的）。
         private val DOWNLOAD_PROXIES = listOf(
-            "https://ghfast.top/",
             "https://gh-proxy.com/",
+            "https://ghfast.top/",
             "https://ghproxy.net/",
             "https://gh.ddlc.top/",
         )
         private val API_PROXIES = listOf(
             "https://gh-proxy.com/",
+            "https://ghfast.top/",
         )
 
         /**

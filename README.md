@@ -8,7 +8,7 @@
   <img alt="platform" src="https://img.shields.io/badge/platform-Android%20TV-3DDC84">
   <img alt="language" src="https://img.shields.io/badge/Kotlin-Compose%20for%20TV-7F52FF">
   <img alt="minSdk" src="https://img.shields.io/badge/minSdk-23-blue">
-  <img alt="abi" src="https://img.shields.io/badge/ABI-arm64--v8a-lightgrey">
+  <img alt="abi" src="https://img.shields.io/badge/ABI-arm64--v8a%20%7C%20armeabi--v7a%20%7C%20x86__64-lightgrey">
   <img alt="license" src="https://img.shields.io/badge/license-Apache--2.0-green">
 </p>
 
@@ -40,7 +40,7 @@
 | ✅ **喜欢网易云播放页观感的人** | 左封面右歌词、圆形黑胶、逐行歌词、全屏歌词特效（胶片还能用歌手写真做背景） |
 | ✅ **想给家人做一台「纯净听歌机」的人** | 无广告、无推荐算法、无账号体系，数据全在本地 |
 | ⚠️ **需要开箱即用的人** | 不适合：本项目不含任何音源，必须自行导入脚本 |
-| ⚠️ **32 位老盒子** | 目前只构建 `arm64-v8a`；需要 32 位请自行调整 `app/build.gradle` 的 `splits`（见第六节） |
+| ⚠️ **32 位老盒子** | 可以装：已提供 `armeabi-v7a` 包，但流畅度取决于芯片，建议优先试 32 位包 |
 
 ---
 
@@ -134,23 +134,56 @@
 
 ## 四、界面预览
 
-> 下列截图来自上游版本，用于说明整体布局；本项目已更名「宝听」并重做了播放页与设置页，截图后续更新。
+> 以下截图均为本项目 v1.0 实机（Android TV 模拟器，1280×720）截取，可直接反映当前版本的实际观感。
 
-![全屏播放器](docs/screenshots/player-live.jpg)
+### 播放页
 
-| 推荐首页 | 搜索 |
+左侧歌词、右侧唱片（默认布局），底部是进度与播放控件；背景动效可切换。
+
+| 动感波光（默认） | 波纹特效 |
 |:--:|:--:|
-| ![推荐首页](docs/screenshots/home.jpg) | ![搜索页](docs/screenshots/search.jpg) |
+| ![动感波光](docs/screenshots/player-wave.jpg) | ![波纹特效](docs/screenshots/player-ripple.jpg) |
 
-| 扫码输入（电视出码） | 手机端输入页（局域网直连） |
-|:--:|:--:|
-| ![扫码](docs/screenshots/qr-search.jpg) | <img src="docs/screenshots/phone-input.jpg" alt="手机输入页" width="260"> |
+### 全屏歌词特效
+
+| 光感 | 星海 | 胶片（歌手写真） |
+|:--:|:--:|:--:|
+| ![光感](docs/screenshots/lyric-light.jpg) | ![星海](docs/screenshots/lyric-starsea.jpg) | ![胶片](docs/screenshots/lyric-cinema.jpg) |
+
+### 发现 / 榜单 / 歌单 / 我的
+
+| 推荐 | 排行榜 | 歌单 | 我的列表 |
+|:--:|:--:|:--:|:--:|
+| ![推荐](docs/screenshots/home.jpg) | ![排行榜](docs/screenshots/leaderboard.jpg) | ![歌单](docs/screenshots/songlist.jpg) | ![我的列表](docs/screenshots/mylist.jpg) |
+
+### 设置
+
+| 设置首页 | 播放（音质 / 解码） | 歌词字体 |
+|:--:|:--:|:--:|
+| ![设置首页](docs/screenshots/settings.jpg) | ![播放设置](docs/screenshots/settings-playback.jpg) | ![歌词字体](docs/screenshots/settings-lyric-font.jpg) |
+
+| 歌词字号 / 对齐 / 数据源 | 外观（布局 / 唱片 / 大小） | 播放页动效 / 全屏歌词 / 列数 |
+|:--:|:--:|:--:|
+| ![歌词设置](docs/screenshots/settings-lyric.jpg) | ![外观设置](docs/screenshots/settings-appearance.jpg) | ![动效设置](docs/screenshots/settings-fx.jpg) |
+
+| 下载（缓存 / 目录 / 并发） | 调试与设备信息 | 检查更新 / 更新网络 |
+|:--:|:--:|:--:|
+| ![下载设置](docs/screenshots/settings-download.jpg) | ![调试](docs/screenshots/settings-about.jpg) | ![更新](docs/screenshots/settings-update.jpg) |
 
 ---
 
 ## 五、下载与安装
 
-从 **Releases** 下载 `baoge-tv-<版本>-arm64-v8a-release.apk`：
+每个版本都提供 **4 个 APK**，按你的设备 ABI 选一个（不确定就装 universal）。
+
+| APK | 适用设备 | 体积 | 说明 |
+|---|---|--:|---|
+| `baoge-tv-<版本>-arm64-v8a-release.apk` | **现代电视 / 盒子（推荐）** | 约 29MB | 2018 年后的 Android TV、投影仪、电视盒子基本都是 64 位 ARM |
+| `baoge-tv-<版本>-armeabi-v7a-release.apk` | 老 32 位设备 | 约 29MB | 2015 年前后的老电视、老盒子、部分运营商定制机 |
+| `baoge-tv-<版本>-x86_64-release.apk` | 模拟器 / x86 小主机 | 约 30MB | Android TV 模拟器、跑 x86 的迷你主机 |
+| `baoge-tv-<版本>-universal-release.apk` | **通吃（不知道选哪个就它）** | 约 33MB | 三种 ABI 全打包，任何设备都能装，只是体积大 |
+
+安装：
 
 ```bash
 adb connect <电视IP>:5555
@@ -158,7 +191,10 @@ adb install -r baoge-tv-1.0-arm64-v8a-release.apk
 ```
 
 或用 U 盘拷到电视，用「文件管理器 / 安装包安装器」打开（首次需允许「未知来源」）。
-要求 **Android 6.0+（minSdk 23）**，ABI **arm64-v8a**。
+系统要求 **Android 6.0+（minSdk 23）**。
+
+> 应用内「检查更新」会**自动按本机 ABI 匹配**对应 APK（arm64-v8a 机器拿到 arm64 包），
+> 匹配不到才退回 universal 包。
 
 > 仓库内自构建的 release APK 默认使用 **debug 签名**（仅便于测试安装）。要正式签名，把
 > `release.keystore` + `keystore.properties` 放进 `app/`，或配置 GitHub Actions 的四个 Secrets。
@@ -170,24 +206,34 @@ adb install -r baoge-tv-1.0-arm64-v8a-release.apk
 ```bash
 # 需要 JDK 17 + Android SDK
 git clone https://github.com/veacon/baomusic.tv
-cd <repo>
+cd baomusic.tv
 echo "sdk.dir=/path/to/Android/sdk" > local.properties
 ./gradlew assembleRelease
-# 产物：app/build/outputs/apk/release/baoge-tv-<version>-arm64-v8a-release.apk
 ```
 
-需要 32 位 / 通用包时，改 `app/build.gradle`：
+一次产出 4 个 APK（`app/build/outputs/apk/release/`）：
+
+```
+baoge-tv-1.0-arm64-v8a-release.apk
+baoge-tv-1.0-armeabi-v7a-release.apk
+baoge-tv-1.0-x86_64-release.apk
+baoge-tv-1.0-universal-release.apk
+```
+
+对应 `app/build.gradle`：
 
 ```groovy
 splits {
     abi {
         enable true
         reset()
-        include "arm64-v8a", "armeabi-v7a"
-        universalApk true
+        include "arm64-v8a", "armeabi-v7a", "x86_64"
+        universalApk true   // 额外产出一个 universal 包
     }
 }
 ```
+
+只想要单包（体积最小）时，把 `universalApk` 改成 `false` 并从 `include` 里删掉不需要的 ABI。
 
 ---
 

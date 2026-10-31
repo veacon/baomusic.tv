@@ -118,13 +118,31 @@
   - 留空 = 直连，并自动依次尝试内置 GitHub 镜像（ghfast.top / gh-proxy.com / ghproxy.net / gh.ddlc.top）；
   - 代理只作用于「检查更新 / 下载安装包」，不影响歌曲播放与歌词抓取。
 
-## 十三、构建产物
-- `app/build/outputs/apk/release/baoge-tv-1.0-arm64-v8a-release.apk`（约 29MB，仅 arm64-v8a；内置「小抖动侠情书」字体约占 3.5MB）。
-- 使用 debug 签名（仓库无 keystore）；如需正式签名，放入 `keystore.properties` + `release.keystore` 后重新构建。
+## 十三、四 ABI 产物 + 镜像补全 + 界面截图更新
+- **恢复四产物构建**（`app/build.gradle` 的 `splits.abi`）：
+  - `include "arm64-v8a", "armeabi-v7a", "x86_64"`，并打开 `universalApk true`；
+  - 产物：`baoge-tv-1.0-arm64-v8a-release.apk`（28.9MB，现代电视）、
+    `baoge-tv-1.0-armeabi-v7a-release.apk`（28.6MB，老 32 位设备）、
+    `baoge-tv-1.0-x86_64-release.apk`（29.0MB，模拟器 / x86 小主机）、
+    `baoge-tv-1.0-universal-release.apk`（32.5MB，三种 ABI 通吃）。
+  - 应用内更新器按 `Build.SUPPORTED_ABIS` 顺序匹配 `-<abi>-`，匹配不到才退回 universal。
+- **GitHub 镜像补全并调整优先级**：`DOWNLOAD_PROXIES` 调整为
+  `gh-proxy.com → ghfast.top → ghproxy.net → gh.ddlc.top`；
+  `API_PROXIES` 增加 `ghfast.top`（原来只有 `gh-proxy.com`）。
+- **CI 同步**：`.github/workflows/release.yml` 的 `files` 从只上传 arm64 扩到四个 APK。
+- **界面预览全部换成项目实机截图**：18 张新截图（1280×720，已转 JPEG 压缩到约 1.28MB），
+  覆盖播放页（动感波光 / 波纹特效）、三种全屏歌词（光感 / 星海 / 胶片）、
+  推荐 / 排行榜 / 歌单 / 我的列表，以及 9 张设置页；删除 4 张带旧品牌的上游截图。
+
+## 十四、构建产物
+- `app/build/outputs/apk/release/` 下四个 APK（见上节体积），均使用 debug 签名（仓库无 keystore）；
+  如需正式签名，放入 `keystore.properties` + `release.keystore` 后重新构建。
+- 内置字体「小抖动侠情书」约 3.5MB、「Aa祝你我明媚向春天」约 14.4MB，是包体的主要构成。
 - **由于设置字段有破坏性变更，首次启动会恢复默认偏好**，需要重新调一次歌词字号 / 对齐等；升级后上述「默认值调整」会按新默认生效。
 
-## 十四、发布注意事项
+## 十五、发布注意事项
 1. 仓库已固定为 `veacon/baomusic.tv`（`UpdateManager` 的 `OWNER` / `REPO`）；换仓库只需改这两行。
 2. 不要提交 `local.properties`、`*.keystore`、`build/` 目录（已在 `.gitignore` 内）。
-3. Release 里的 APK 命名保持 `baoge-tv-<版本>-arm64-v8a-release.apk`，应用内更新器按 `-<abi>-` 自动匹配 ABI。
-4. 推 `v*` 标签会触发 `.github/workflows/release.yml` 自动构建并发布；也可以手动上传本地构建的 APK。
+3. Release 里的 APK 命名保持 `baoge-tv-<版本>-<abi>-release.apk`，应用内更新器按 `-<abi>-` 自动匹配；
+   universal 包命名里必须带 `-universal-`，否则会被误判成某个 ABI 包。
+4. 推 `v*` 标签会触发 `.github/workflows/release.yml` 自动构建并发布四个 APK；也可以手动上传本地构建的包。

@@ -62,8 +62,11 @@ jobs:
       - name: Upload APKs to the GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          # 本项目只出 arm64-v8a（现代电视 / 盒子都是这个 ABI），APK 文件名前缀是 baoge-tv-。
+          # 四个产物：arm64-v8a（现代电视）/ armeabi-v7a（老 32 位）/ x86_64（模拟器）/ universal（通吃）。
           files: |
             app/build/outputs/apk/release/baoge-tv-*-arm64-v8a-release.apk
+            app/build/outputs/apk/release/baoge-tv-*-armeabi-v7a-release.apk
+            app/build/outputs/apk/release/baoge-tv-*-x86_64-release.apk
+            app/build/outputs/apk/release/baoge-tv-*-universal-release.apk
           generate_release_notes: true
           fail_on_unmatched_files: true
