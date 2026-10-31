@@ -158,7 +158,7 @@ fun LocalImportDialog(onDismiss: () -> Unit) {
             if (permHint) {
                 Spacer(Modifier.size(6.dp))
                 Text(
-                    "需要存储权限：请在系统设置里允许「宝哥听」访问音乐和音频（选「使用期间允许」或「允许管理所有文件」都可以），然后返回再点选择文件夹。",
+                    "需要存储权限：请在系统设置里允许「宝听」访问音乐和音频（选「使用期间允许」或「允许管理所有文件」都可以），然后返回再点选择文件夹。",
                     color = AppColors.Warning,
                     fontSize = 12.sp,
                 )

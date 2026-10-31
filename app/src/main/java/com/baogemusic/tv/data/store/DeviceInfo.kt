@@ -42,14 +42,15 @@ object DeviceInfo {
         )
     }
 
-    /** 本机可硬解的音视频格式（友好的中文/英文简称）。 */
-    fun hardwareFormats(): List<String> {
+    /** 本机可硬解的格式（友好的中文/英文简称）。[audioOnly] 为 true 时只保留音频格式。 */
+    fun hardwareFormats(audioOnly: Boolean = false): List<String> {
         val found = LinkedHashMap<String, String>() // MIME -> 友好名，保序去重
         val codecList = MediaCodecList(MediaCodecList.REGULAR_CODECS)
         for (info in codecList.codecInfos) {
             if (isEncoder(info)) continue
             if (!isHardware(info)) continue
             for (type in info.supportedTypes) {
+                if (audioOnly && !type.startsWith("audio/")) continue
                 FRIENDLY[type]?.let { found.putIfAbsent(type, it) }
             }
         }

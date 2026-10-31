@@ -106,7 +106,7 @@ private fun Brand(modifier: Modifier = Modifier) {
         )
         Spacer(Modifier.width(6.dp))
         Text(
-            text = "宝哥听",
+            text = "宝听",
             color = AppColors.TextPrimary,
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,

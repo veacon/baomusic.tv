@@ -45,7 +45,7 @@ object LyricFont {
     const val MIN = 16
     const val MAX = 72
     const val STEP = 1
-    const val DEFAULT = 24
+    const val DEFAULT = 40
     fun clamp(value: Int): Int = value.coerceIn(MIN, MAX)
     fun step(value: Int, delta: Int): Int = clamp(value + delta)
 }
@@ -96,25 +96,26 @@ enum class DiscShape(val label: String) {
 
 /** 播放页背景动效。
  *  - WAVE：参考 QQ 音乐「动感波光」（随音量向外扩散的波纹）；
- *  - WHALE：复刻网易云「鲸云音效」——从封面中心向外辐射的三角形粒子，随距离淡出（取自
- *    https://github.com/tyhjh/JinyunEffect，改名为「鲸鱼特效」）。
- *  全部用纯 Compose Canvas 绘制（不依赖 Web 内核），在 Android 8 的电视 / 投影仪上也能跑。
- *  注意：原「神光」已按需求移除，仅保留「动感波光」与「鲸鱼特效」。 */
+ *  - RIPPLE：波纹特效（参考 BMMusicPlayer，连续同心水波从封面中心一圈圈荡开）；
+ *  - DUST：宇宙尘埃特效（参考 ParticleView，细碎尘埃 / 星点在背景中缓慢漂浮、闪烁）。
+ *  全部用纯 Compose Canvas 绘制（不依赖 Web 内核），在 Android 8 的电视 / 投影仪上也能跑。 */
 @Serializable
 enum class PlayerFx(val label: String) {
     OFF("关闭"),
     WAVE("动感波光"),
-    WHALE("鲸鱼特效"),
+    RIPPLE("波纹特效"),
+    DUST("宇宙尘埃特效"),
 }
 
-/** 播放界面整体风格。
- *  NETEASE 为网易云同款：左封面 + 右歌词，直接铺在模糊专辑背景上；
- *  BETTERLYRICS 为 BetterLyrics 标准界面：模糊专辑铺满全屏作背景，居中一张半透明圆角卡片
- *  承载「左封面 + 右双语歌词」（标题 / 歌手移到封面下方），更沉浸、偏冷色玻璃质感。 */
+/** 全屏歌词特效（参考 YuMusic / QQ 音乐）：
+ *  - NONE：常规两栏歌词；
+ *  - SONNET（商籁）：全屏居中、逐句淡入的雅致歌词；
+ *  - STARSEA（星海）：全屏星海背景 + 发光歌词，当前句最亮。 */
 @Serializable
-enum class PlayerUi(val label: String) {
-    NETEASE("复刻网易"),
-    BETTERLYRICS("BetterLyrics"),
+enum class FullscreenLyricFx(val label: String) {
+    NONE("关闭"),
+    SONNET("商籁"),
+    STARSEA("星海"),
 }
 
 /** 歌单 / 我的页面的卡片列数。列数越多卡片越小。 */
@@ -125,10 +126,10 @@ object GridColumns {
 }
 
 /** 播放页唱片（封面）整体大小的缩放系数：0.5–1.2，步长 0.1，默认 1.0（即各布局的原始尺寸）。
- *  改动即时生效，封面、动感波光 / 鲸鱼粒子中心都会同步缩放。 */
+ *  改动即时生效，封面与动效中心都会同步缩放。 */
 object CoverScale {
     const val MIN = 0.5f
-    const val MAX = 1.2f
+    const val MAX = 3.0f
     const val STEP = 0.1f
     const val DEFAULT = 1.0f
     fun clamp(value: Float): Float = value.coerceIn(MIN, MAX)
@@ -176,12 +177,12 @@ data class Settings(
     val showLyricTranslation: Boolean = true,
     /** 歌词当前行字号（sp，绝对值，如 45）。设置页直接以数值显示，步进 1。 */
     val lyricFontSizeSp: Int = LyricFont.DEFAULT,
-    /** 歌词行距倍率，1.0–3.0（步长 0.1）；实际行高 = 字号 × 1.5 × 该值。 */
-    val lyricLineScale: Float = 1.0f,
+    /** 歌词行距倍率，0.5–2.0（步长 0.1）；实际行高 = 字号 × 1.5 × 该值。 */
+    val lyricLineScale: Float = 0.9f,
     /** 歌词对齐方式：左对齐 / 居中 / 右对齐。 */
     val lyricAlignment: LyricAlignment = LyricAlignment.LEFT,
-    /** 全局字体（内置字体见 res/font；CUSTOM 走 [com.baogemusic.tv.data.store.FontStore]）。
-     *  通过 LocalTextStyle 注入，作用于整个 App 的文字。 */
+    /** 歌词字体（内置字体见 res/font；CUSTOM 走 [com.baogemusic.tv.data.store.FontStore]）。
+     *  仅作用于歌词文字，不影响其他界面文字。 */
     val appFontFamily: AppFontFamily = AppFontFamily.SYSTEM,
     /** [AppFontFamily.CUSTOM] 选中的用户字体 id（FontStore 里的 UserFont.id）。 */
     val customFontId: String? = null,
@@ -190,24 +191,24 @@ data class Settings(
     /** 允许自动回退：关掉后只用排在第一位的源。 */
     val lyricSourceFallback: Boolean = true,
     val vinylColor: VinylColor = VinylColor.GREEN,
-    /** 播放页唱片 / 歌词的左右排布：网易云同款是「唱片左 · 歌词右」。 */
-    val playerLayout: PlayerLayout = PlayerLayout.LYRIC_RIGHT,
-    /** 唱片 / 封面形状：圆形唱片 or 圆角方形封面（网易云同款为圆角方形）。 */
-    val discShape: DiscShape = DiscShape.ROUNDED_SQUARE,
-    /** 播放页背景动效：关闭 / 动感波光（波纹从封面中心向外扩散，跟随唱片左右位置）。 */
+    /** 播放页唱片 / 歌词的左右排布：默认「歌词左 · 唱片右」。 */
+    val playerLayout: PlayerLayout = PlayerLayout.LYRIC_LEFT,
+    /** 唱片 / 封面形状：默认圆形唱片。 */
+    val discShape: DiscShape = DiscShape.CIRCLE,
+    /** 播放页背景动效：关闭 / 动感波光 / 波纹特效 / 宇宙尘埃特效。 */
     val playerFx: PlayerFx = PlayerFx.WAVE,
-    /** 播放界面整体风格：复刻网易（默认）或 BetterLyrics（沉浸式模糊背景 + 居中半透明卡片）。 */
-    val playerUi: PlayerUi = PlayerUi.NETEASE,
-    /** 播放页唱片（封面）整体大小的缩放系数：0.5–1.2（步长 0.1，默认 1.0）。
-     *  改动即时生效，封面、动感波光 / 鲸鱼粒子中心都会同步缩放。详见 [CoverScale]。 */
+    /** 播放页全屏歌词特效：关闭 / 商籁 / 星海。 */
+    val fullscreenLyricFx: FullscreenLyricFx = FullscreenLyricFx.NONE,
+    /** 播放页唱片（封面）整体大小的缩放系数：0.5–3.0（步长 0.1，默认 1.0）。
+     *  改动即时生效，封面、动效中心都会同步缩放。详见 [CoverScale]。 */
     val coverScale: Float = CoverScale.DEFAULT,
     /** 歌单页 / 我的页面的卡片列数（4–8），列数越多卡片越小。 */
     val gridColumns: Int = GridColumns.DEFAULT,
     /** 图片磁盘缓存上限（GB）。详见 [CacheQuota]。 */
     val imageCacheGb: Float = CacheQuota.DEFAULT_GB,
     /** Player screen: hide progress bar + transport after a few idle seconds; any D-pad / OK key
-     *  brings them back. Off by default. */
-    val autoHidePlayerControls: Boolean = false,
+     *  brings them back. On by default. */
+    val autoHidePlayerControls: Boolean = true,
     /** 显示调试信息: app-wide switch for diagnostic UI (off by default). Currently: the player's
      *  status line (正在获取播放地址 / 播放失败已跳过 / 已换音源 …). Gate future debug UI on it too. */
     val showDebugInfo: Boolean = false,
@@ -223,12 +224,9 @@ data class Settings(
     /** Batch "下载全部": when a track is already downloaded but at a different quality than the
      *  chosen target, re-download it to match (true) vs. always skip already-downloaded (false). */
     val redownloadOnQualityChange: Boolean = true,
-    /** Sources that feed the discover (home) page. Spec docs/discover-page-spec-android-tv.md §2:
-     *  fixed 4 in order kw → wy → kg → tx, default all enabled. */
+    /** Sources that feed the discover (home) page. 默认仅网易云 + QQ 音乐。 */
     val homeSources: Set<com.baogemusic.tv.data.model.SourceID> = setOf(
-        com.baogemusic.tv.data.model.SourceID.KW,
         com.baogemusic.tv.data.model.SourceID.WY,
-        com.baogemusic.tv.data.model.SourceID.KG,
         com.baogemusic.tv.data.model.SourceID.TX,
     ),
 )

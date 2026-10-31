@@ -1,14 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 蓝色渐变，和图标里的蓝色音符同色系：亮蓝(#4FA8FF) 左上 → 深蓝(#0D47A1) 右下。
-     Visible only where the foreground PNG is transparent (outside the 86% inset), so it
-     appears as a soft halo behind the icon once the launcher applies its circle /
-     squircle / rounded-square mask. -->
+<!-- 浅蓝白渐变，与「宝听」蓝色音符 logo 同色系：近白(#F7FAFF) 左上 → 淡蓝(#E2EEFF) 右下。
+     Visible only where the foreground PNG is transparent (outside the note / rings)，作为图标底色。 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <gradient
         android:type="linear"
         android:angle="315"
-        android:startColor="#4FA8FF"
-        android:centerColor="#1E6BE8"
-        android:endColor="#0D47A1"/>
+        android:startColor="#F7FAFF"
+        android:centerColor="#EDF4FF"
+        android:endColor="#E2EEFF"/>
 </shape>

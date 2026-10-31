@@ -84,6 +84,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -92,10 +93,10 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
 import com.baogemusic.tv.data.model.Track
+import com.baogemusic.tv.data.store.FullscreenLyricFx
 import com.baogemusic.tv.data.store.LyricAlignment
 import com.baogemusic.tv.data.store.PlayerFx
 import com.baogemusic.tv.data.store.PlayerLayout
-import com.baogemusic.tv.data.store.PlayerUi
 import com.baogemusic.tv.playback.LyricParser
 import com.baogemusic.tv.playback.RepeatMode
 import com.baogemusic.tv.ui.appContainer
@@ -103,6 +104,7 @@ import com.baogemusic.tv.ui.components.Artwork
 import com.baogemusic.tv.ui.components.TvFocusable
 import com.baogemusic.tv.ui.components.TvPill
 import com.baogemusic.tv.ui.theme.AppColors
+import com.baogemusic.tv.ui.theme.rememberAppFontFamily
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -195,9 +197,8 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
       return@Box
     }
 
-    // 播放界面整体风格：复刻网易（左封面 + 右歌词，直接铺在模糊背景上）或 BetterLyrics
-    // （模糊专辑铺满全屏，居中一张半透明冷色玻璃卡片承载「左封面 + 右双语歌词」，标题 / 歌手移到封面下方）。
-    val ui = settings.playerUi
+    // 歌词字体：只作用于歌词文字（设置 → 歌词 → 字体），不影响其他界面文字。
+    val lyricFont = rememberAppFontFamily()
     val lyricStatus by controller.lyricStatus.collectAsState()
     val activeSp = settings.lyricFontSizeSp
     val lineFactor = com.baogemusic.tv.data.store.LyricScaleRange.lineFactorOf(settings.lyricLineScale)
@@ -253,8 +254,7 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
       }
     }
 
-    // 封面容器（含动感波光，波纹中心 = 封面中心，并随方向左右移动）。scale 控制整体大小，
-    // BetterLyrics 模式稍微缩小，给封面下方的标题 / 歌手留位置。
+    // 封面容器（含动感波光，波纹中心 = 封面中心，并随方向左右移动）。scale 控制整体大小。
     val coverContainer: @Composable (Modifier, Float) -> Unit = { m, scale ->
       Box(modifier = m.size(screenHeight * scale), contentAlignment = Alignment.Center) {
         if (settings.playerFx != PlayerFx.OFF) {
@@ -295,6 +295,7 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
             lineFactor = lineFactor,
             showTranslation = settings.showLyricTranslation,
             singleLine = false,
+            fontFamily = lyricFont,
             failureHint = (lyricStatus as? com.baogemusic.tv.playback.LyricStatus.Failed)?.message,
             loading = lyricStatus is com.baogemusic.tv.playback.LyricStatus.Loading,
             onRetry = { controller.retryLyrics() },
@@ -312,49 +313,34 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
           verticalAlignment = Alignment.CenterVertically,
         ) {
           if (coverOnLeft) {
-            if (ui == PlayerUi.BETTERLYRICS) {
-              Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                coverContainer(Modifier, 0.60f * settings.coverScale)
-                Spacer(Modifier.height(18.dp))
-                trackMeta()
-              }
-            } else {
-              coverContainer(Modifier, 0.72f * settings.coverScale)
-            }
+            coverContainer(Modifier, 0.72f * settings.coverScale)
             Spacer(Modifier.width(40.dp))
-            lyricPanel(Modifier.weight(1f), ui == PlayerUi.NETEASE)
+            lyricPanel(Modifier.weight(1f), true)
           } else {
-            lyricPanel(Modifier.weight(1f), ui == PlayerUi.NETEASE)
+            lyricPanel(Modifier.weight(1f), true)
             Spacer(Modifier.width(40.dp))
-            if (ui == PlayerUi.BETTERLYRICS) {
-              Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                coverContainer(Modifier, 0.60f * settings.coverScale)
-                Spacer(Modifier.height(18.dp))
-                trackMeta()
-              }
-            } else {
-              coverContainer(Modifier, 0.72f * settings.coverScale)
-            }
+            coverContainer(Modifier, 0.72f * settings.coverScale)
           }
         }
       }
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 32.dp)) {
-      // 主体：复刻网易 / BetterLyrics 舞台，占满中间区域；底部保留波形与播放控件。
-      when (ui) {
-        PlayerUi.NETEASE -> Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+      // 主体：复刻网易舞台（左封面 + 右歌词）；若选了全屏歌词特效，用全屏歌词替代舞台。
+      Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+        if (settings.fullscreenLyricFx != FullscreenLyricFx.NONE) {
+          FullscreenLyricStage(
+            fx = settings.fullscreenLyricFx,
+            lyrics = lyrics,
+            positionMs = state.positionMs,
+            fontSp = activeSp,
+            lineFactor = lineFactor,
+            showTranslation = settings.showLyricTranslation,
+            fontFamily = lyricFont,
+            modifier = Modifier.fillMaxSize(),
+          )
+        } else {
           stage(Modifier.fillMaxSize())
-        }
-        PlayerUi.BETTERLYRICS -> Box(
-          modifier = Modifier.fillMaxWidth().weight(1f),
-          contentAlignment = Alignment.Center,
-        ) {
-          BetterLyricsCard(
-            modifier = Modifier
-              .fillMaxWidth(0.98f)
-              .fillMaxHeight(0.9f),
-          ) { stage(Modifier.fillMaxSize()) }
         }
       }
 
@@ -1096,6 +1082,8 @@ private fun LyricPane(
   showTranslation: Boolean,
   /** 神光模式：一次只显示一句话（切换时淡入淡出 + 轻微上移），其余歌词不占位。 */
   singleLine: Boolean = false,
+  /** 仅作用于歌词的字体（设置 → 歌词 → 字体）。null 表示系统默认字体。 */
+  fontFamily: FontFamily? = null,
   /** 全部数据源都没拿到歌词时的说明（含已尝试过哪些源）。 */
   failureHint: String? = null,
   loading: Boolean = false,
@@ -1173,6 +1161,7 @@ private fun LyricPane(
           Text(
             line?.text ?: "",
             color = AppColors.TextPrimary,
+            fontFamily = fontFamily,
             fontSize = lyricFontSizeSp.sp,
             lineHeight = (lyricFontSizeSp * lineFactor).sp,
             fontWeight = FontWeight.Bold,
@@ -1186,6 +1175,7 @@ private fun LyricPane(
             Text(
               t,
               color = AppColors.LyricActive.copy(alpha = 0.72f),
+              fontFamily = fontFamily,
               fontSize = com.baogemusic.tv.data.store.LyricScaleRange.translationOf(lyricFontSizeSp).sp,
               lineHeight = (com.baogemusic.tv.data.store.LyricScaleRange.translationOf(lyricFontSizeSp) * lineFactor).sp,
               textAlign = TextAlign.Center,
@@ -1262,6 +1252,7 @@ private fun LyricPane(
           Text(
             line.text,
             color = color,
+            fontFamily = fontFamily,
             fontSize = (if (isActive) lyricFontSizeSp else inactiveSp).sp,
             // 显式行高：默认行高跟不上大字号，长歌词换行时上下两行会重叠（#21）。
             lineHeight = ((if (isActive) lyricFontSizeSp else inactiveSp) * factor).sp,
@@ -1275,6 +1266,7 @@ private fun LyricPane(
             Text(
               t,
               color = if (isActive) AppColors.LyricActive.copy(alpha = 0.7f) else AppColors.TextMuted,
+              fontFamily = fontFamily,
               fontSize = translationSp.sp,
               lineHeight = (translationSp * factor).sp,
               textAlign = textAlign,
@@ -1454,8 +1446,12 @@ private fun PlayerBackdrop(
   modifier: Modifier = Modifier,
 ) {
   if (fx == PlayerFx.OFF) return
-  if (fx == PlayerFx.WHALE) {
-    WhaleBackdrop(isPlaying = isPlaying, level = level, glow = glow, modifier = modifier)
+  if (fx == PlayerFx.RIPPLE) {
+    RippleBackdrop(isPlaying = isPlaying, level = level, glow = glow, modifier = modifier)
+    return
+  }
+  if (fx == PlayerFx.DUST) {
+    DustBackdrop(isPlaying = isPlaying, level = level, glow = glow, modifier = modifier)
     return
   }
   val transition = rememberInfiniteTransition(label = "playerFx")
@@ -1510,30 +1506,30 @@ private fun PlayerBackdrop(
 }
 
 /**
- * 鲸鱼特效（复刻网易云「鲸云音效」，取自 https://github.com/tyhjh/JinyunEffect）：从封面中心向外辐射的
- * 三角形粒子，随距离逐渐淡出，中心仍有呼吸光。波纹 / 粒子中心 = 专辑中心（Canvas 包在封面容器里），
- * 因此天然从封面中心向外延伸，并随唱片在左 / 在右一起移动。纯 Compose Canvas 绘制，不依赖 Web 内核。
+ * 波纹特效（参考 BMMusicPlayer）：从封面中心一圈圈荡开的同心水波，带细微白色高光边，
+ * 比「动感波光」更厚、更慢、更有水面连续涟漪的感觉。中心 = 专辑中心（Canvas 包在封面容器里），
+ * 因此天然从封面中心向外延伸，并随唱片在左 / 在右一起移动。纯 Compose Canvas 绘制。
  */
 @Composable
-private fun WhaleBackdrop(
+private fun RippleBackdrop(
   isPlaying: Boolean,
   level: Float,
   glow: Color,
   modifier: Modifier = Modifier,
 ) {
-  val transition = rememberInfiniteTransition(label = "whaleFx")
+  val transition = rememberInfiniteTransition(label = "rippleFx")
   val t by transition.animateFloat(
     initialValue = 0f,
     targetValue = 1f,
     animationSpec = infiniteRepeatable(
-      animation = tween(durationMillis = 3_000, easing = LinearEasing),
+      animation = tween(durationMillis = 4_200, easing = LinearEasing),
     ),
-    label = "whaleTime",
+    label = "rippleTime",
   )
   val smooth by animateFloatAsState(
     targetValue = if (isPlaying) level.coerceIn(0f, 1f) else 0f,
-    animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
-    label = "whaleLevel",
+    animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+    label = "rippleLevel",
   )
   androidx.compose.foundation.Canvas(
     modifier = modifier
@@ -1544,37 +1540,127 @@ private fun WhaleBackdrop(
     val cy = size.height / 2f
     val base = size.minDimension
     val center = Offset(cx, cy)
-    val maxR = base * 0.46f
-    val triSize = base * 0.045f
-    val count = 18
-    for (i in 0 until count) {
-      val angle = (i.toFloat() / count) * 2f * PI.toFloat()
-      val phase = i.toFloat() / count
-      val p = (t + phase) % 1f
-      val r = maxR * p * (1f + smooth * 0.15f)
-      val alpha = ((1f - p) * (0.45f + smooth * 0.45f)).coerceIn(0f, 1f)
-      val px = cx + cos(angle) * r
-      val py = cy + sin(angle) * r
-      val dir = Offset(cos(angle), sin(angle))
-      val perp = Offset(-sin(angle), cos(angle))
-      val tip = Offset(px, py) + dir * triSize
-      val b1 = Offset(px, py) + perp * triSize * 0.6f
-      val b2 = Offset(px, py) - perp * triSize * 0.6f
-      val path = Path().apply { moveTo(tip.x, tip.y); lineTo(b1.x, b1.y); lineTo(b2.x, b2.y); close() }
-      drawPath(path, color = glow.copy(alpha = alpha), blendMode = BlendMode.Screen)
+    val rings = 6
+    for (i in 0 until rings) {
+      val p = ((t + i.toFloat() / rings) % 1f)
+      val r = base * (0.08f + p * 0.62f) * (1f + smooth * 0.15f)
+      val alpha = ((1f - p) * (0.10f + smooth * 0.22f)).coerceIn(0f, 1f)
+      // 主波：较厚的光环
+      drawCircle(
+        color = glow.copy(alpha = alpha),
+        radius = r,
+        center = center,
+        style = Stroke(width = base * 0.018f * (1f - p * 0.5f)),
+        blendMode = BlendMode.Screen,
+      )
+      // 内沿高光：让涟漪更接近水面反光
+      drawCircle(
+        color = Color.White.copy(alpha = alpha * 0.28f),
+        radius = r * 0.985f,
+        center = center,
+        style = Stroke(width = base * 0.004f),
+        blendMode = BlendMode.Screen,
+      )
     }
-    // 中心呼吸光
-    val rg = base * (0.18f + smooth * 0.10f)
+    // 中心柔和涟漪光
+    val rr = base * (0.22f + smooth * 0.08f)
     drawCircle(
       brush = Brush.radialGradient(
-        colors = listOf(glow.copy(alpha = 0.22f + smooth * 0.18f), Color.Transparent),
+        colors = listOf(glow.copy(alpha = 0.16f + smooth * 0.14f), Color.Transparent),
         center = center,
-        radius = rg,
+        radius = rr,
       ),
-      radius = rg,
+      radius = rr,
       center = center,
       blendMode = BlendMode.Screen,
     )
+  }
+}
+
+/**
+ * 宇宙尘埃特效（参考 ParticleView）：大量细碎尘埃 / 星点在背景中缓慢上浮、明暗闪烁，
+ * 中心叠一层极淡星云。粒子位置用固定随机种子生成，保证每帧稳定不抖动。纯 Compose Canvas 绘制。
+ */
+@Composable
+private fun DustBackdrop(
+  isPlaying: Boolean,
+  level: Float,
+  glow: Color,
+  modifier: Modifier = Modifier,
+) {
+  val transition = rememberInfiniteTransition(label = "dustFx")
+  val t by transition.animateFloat(
+    initialValue = 0f,
+    targetValue = 1f,
+    animationSpec = infiniteRepeatable(
+      animation = tween(durationMillis = 12_000, easing = LinearEasing),
+    ),
+    label = "dustTime",
+  )
+  val smooth by animateFloatAsState(
+    targetValue = if (isPlaying) level.coerceIn(0f, 1f) else 0f,
+    animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
+    label = "dustLevel",
+  )
+  // 固定种子的粒子：x0, y0, 尺寸系数, 相位, 闪烁速度, 漂移系数
+  val dots = remember {
+    val rnd = kotlin.random.Random(2024)
+    List(110) {
+      floatArrayOf(
+        rnd.nextFloat(),
+        rnd.nextFloat(),
+        0.4f + rnd.nextFloat() * 1.8f,
+        rnd.nextFloat(),
+        0.4f + rnd.nextFloat() * 1.4f,
+        0.4f + rnd.nextFloat() * 0.9f,
+      )
+    }
+  }
+  androidx.compose.foundation.Canvas(
+    modifier = modifier
+      .fillMaxSize()
+      .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen },
+  ) {
+    val w = size.width
+    val h = size.height
+    val base = size.minDimension
+    val center = Offset(w / 2f, h / 2f)
+    // 中心星云
+    val nebula = base * 0.52f
+    drawCircle(
+      brush = Brush.radialGradient(
+        colors = listOf(glow.copy(alpha = 0.10f + smooth * 0.10f), Color.Transparent),
+        center = center,
+        radius = nebula,
+      ),
+      radius = nebula,
+      center = center,
+      blendMode = BlendMode.Screen,
+    )
+    for (d in dots) {
+      // 缓慢上浮 + 轻微左右摆动
+      val yNorm = (((d[1] - t * 0.16f * d[5]) % 1f) + 1f) % 1f
+      val xNorm = (d[0] + sin(t * 2f * PI.toFloat() + d[3] * 6.283f) * 0.012f)
+      val px = xNorm * w
+      val py = yNorm * h
+      val twinkle = 0.35f + 0.65f * abs(sin((t * d[4] + d[3]) * 2f * PI.toFloat()))
+      val alpha = (twinkle * (0.45f + smooth * 0.35f)).coerceIn(0f, 1f)
+      val radius = base * 0.0035f * d[2] * (0.7f + twinkle * 0.6f)
+      drawCircle(color = glow.copy(alpha = alpha), radius = radius, center = Offset(px, py), blendMode = BlendMode.Screen)
+      // 少量大颗粒带光晕
+      if (d[2] > 1.8f) {
+        drawCircle(
+          brush = Brush.radialGradient(
+            colors = listOf(glow.copy(alpha = alpha * 0.6f), Color.Transparent),
+            center = Offset(px, py),
+            radius = radius * 4f,
+          ),
+          radius = radius * 4f,
+          center = Offset(px, py),
+          blendMode = BlendMode.Screen,
+        )
+      }
+    }
   }
 }
 
@@ -1616,30 +1702,169 @@ private fun CoverBackdrop(picURL: String?) {
   }
 }
 
+// ============== 全屏歌词特效（商籁 / 星海）=====================================================
+
 /**
- * BetterLyrics 标准界面的标志性「玻璃卡片」：模糊专辑铺满全屏作背景，正中一张半透明、偏冷色的
- * 圆角卡片承载「左封面 + 右双语歌词」。卡片本身只做容器（裁剪 + 背景 + 描边 + 内边距），
- * 内部内容由调用方传入（即 [PlayerScreen] 里的两栏舞台）。
+ * 全屏歌词特效（参考 YuMusic / QQ 音乐）：
+ * - 商籁：雅致的居中三行歌词（上一句 / 当前句 / 下一句）+ 细线分隔 + 柔和暗角，逐句淡入；
+ * - 星海：深蓝星海背景 + 漂浮星点，当前句发蓝白辉光。
+ * 纯 Compose 绘制，切换当前句用淡入淡出。
  */
 @Composable
-private fun BetterLyricsCard(
+private fun FullscreenLyricStage(
+  fx: FullscreenLyricFx,
+  lyrics: List<com.baogemusic.tv.playback.LyricLine>,
+  positionMs: Long,
+  fontSp: Int,
+  lineFactor: Float,
+  showTranslation: Boolean,
+  fontFamily: FontFamily?,
   modifier: Modifier = Modifier,
-  content: @Composable () -> Unit,
 ) {
-  Box(
-    modifier = modifier
-      .clip(RoundedCornerShape(28.dp))
-      .background(
-        Brush.verticalGradient(
-          listOf(
-            Color(0xFF26405A).copy(alpha = 0.60f),
-            Color(0xFF0E1A28).copy(alpha = 0.66f),
+  if (lyrics.isEmpty()) {
+    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+      Text("暂无歌词", color = AppColors.TextSecondary, fontSize = 18.sp)
+    }
+    return
+  }
+  val active = LyricParser.activeIndex(positionMs / 1000.0, lyrics)
+  val prev = lyrics.getOrNull(active - 1)
+  val next = lyrics.getOrNull(active + 1)
+  val starSea = fx == FullscreenLyricFx.STARSEA
+  val activeColor = if (starSea) Color(0xFFC7E6FF) else AppColors.LyricActive
+  val glowRadius = if (starSea) 30f else 18f
+
+  Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    // 背景
+    if (starSea) {
+      StarField(Modifier.fillMaxSize())
+    } else {
+      Box(
+        Modifier.fillMaxSize().background(
+          Brush.radialGradient(
+            colors = listOf(Color.Transparent, AppColors.BgDeep.copy(alpha = 0.62f)),
           ),
         ),
       )
-      .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(28.dp))
-      .padding(40.dp),
-  ) {
-    content()
+    }
+
+    Column(
+      horizontalAlignment = Alignment.CenterHorizontally,
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 96.dp),
+    ) {
+      Text(
+        prev?.text ?: "",
+        color = AppColors.TextMuted.copy(alpha = 0.45f),
+        fontSize = (fontSp * 0.52f).sp,
+        fontFamily = fontFamily,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth(),
+      )
+      Spacer(Modifier.height(16.dp))
+      if (!starSea) Hairline()
+      Spacer(Modifier.height(22.dp))
+
+      androidx.compose.animation.AnimatedContent(
+        targetState = active,
+        transitionSpec = {
+          androidx.compose.animation.fadeIn(tween(420)) togetherWith
+            androidx.compose.animation.fadeOut(tween(300))
+        },
+        label = "fullscreenLyric",
+      ) { idx ->
+        val l = lyrics.getOrNull(idx)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+          Text(
+            l?.text ?: "",
+            color = activeColor,
+            fontSize = fontSp.sp,
+            lineHeight = (fontSp * lineFactor).sp,
+            fontFamily = fontFamily,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            style = androidx.compose.ui.text.TextStyle(
+              shadow = androidx.compose.ui.graphics.Shadow(
+                color = activeColor.copy(alpha = 0.75f),
+                blurRadius = glowRadius,
+              ),
+            ),
+            modifier = Modifier.fillMaxWidth(),
+          )
+          l?.translation?.takeIf { showTranslation }?.let { t ->
+            Spacer(Modifier.height(10.dp))
+            Text(
+              t,
+              color = activeColor.copy(alpha = 0.72f),
+              fontSize = (fontSp * 0.5f).sp,
+              fontFamily = fontFamily,
+              textAlign = TextAlign.Center,
+              modifier = Modifier.fillMaxWidth(),
+            )
+          }
+        }
+      }
+
+      Spacer(Modifier.height(22.dp))
+      if (!starSea) Hairline()
+      Spacer(Modifier.height(16.dp))
+      Text(
+        next?.text ?: "",
+        color = AppColors.TextMuted.copy(alpha = 0.35f),
+        fontSize = (fontSp * 0.46f).sp,
+        fontFamily = fontFamily,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth(),
+      )
+    }
   }
 }
+
+@Composable
+private fun Hairline() {
+  Box(
+    Modifier
+      .fillMaxWidth(0.5f)
+      .height(1.dp)
+      .background(Color.White.copy(alpha = 0.14f)),
+  )
+}
+
+/** 星海背景：深蓝渐变 + 缓慢闪烁 / 漂浮的星点。 */
+@Composable
+private fun StarField(modifier: Modifier = Modifier) {
+  val transition = rememberInfiniteTransition(label = "starSea")
+  val t by transition.animateFloat(
+    initialValue = 0f,
+    targetValue = 1f,
+    animationSpec = infiniteRepeatable(animation = tween(durationMillis = 9_000, easing = LinearEasing)),
+    label = "starTime",
+  )
+  val stars = remember {
+    val rnd = kotlin.random.Random(7)
+    List(150) { floatArrayOf(rnd.nextFloat(), rnd.nextFloat(), 0.3f + rnd.nextFloat() * 1.8f, rnd.nextFloat()) }
+  }
+  androidx.compose.foundation.Canvas(modifier.fillMaxSize()) {
+    drawRect(
+      brush = Brush.verticalGradient(
+        listOf(Color(0xFF050D18).copy(alpha = 0.82f), Color(0xFF0A1B2E).copy(alpha = 0.82f)),
+      ),
+    )
+    for (s in stars) {
+      val yNorm = (((s[1] - t * 0.05f * s[2]) % 1f) + 1f) % 1f
+      val twinkle = 0.35f + 0.65f * abs(sin((t * s[2] + s[3]) * 2f * PI.toFloat()))
+      val radius = size.minDimension * 0.0026f * s[2] * (0.6f + twinkle * 0.8f)
+      drawCircle(
+        color = Color(0xFFDCEBFF).copy(alpha = (twinkle * 0.9f).coerceIn(0f, 1f)),
+        radius = radius,
+        center = Offset(s[0] * size.width, yNorm * size.height),
+        blendMode = BlendMode.Screen,
+      )
+    }
+  }
+}
+
+

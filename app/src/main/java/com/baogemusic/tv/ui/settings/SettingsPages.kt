@@ -1,6 +1,7 @@
 package com.baogemusic.tv.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.size
@@ -58,6 +59,7 @@ import com.baogemusic.tv.data.store.DeviceInfo
 import com.baogemusic.tv.data.store.DiscShape
 import com.baogemusic.tv.data.store.CoverScale
 import com.baogemusic.tv.data.store.FontImportRules
+import com.baogemusic.tv.data.store.FullscreenLyricFx
 import com.baogemusic.tv.data.store.GridColumns
 import com.baogemusic.tv.data.store.LyricAlignment
 import com.baogemusic.tv.data.store.LyricFont
@@ -65,7 +67,6 @@ import com.baogemusic.tv.data.store.LyricScaleRange
 import com.baogemusic.tv.data.store.LyricSource
 import com.baogemusic.tv.data.store.PlayerFx
 import com.baogemusic.tv.data.store.PlayerLayout
-import com.baogemusic.tv.data.store.PlayerUi
 import com.baogemusic.tv.data.store.Settings
 import com.baogemusic.tv.data.store.UserFont
 import com.baogemusic.tv.data.store.VinylColor
@@ -165,14 +166,144 @@ internal fun PlaybackPage(
 
 // ============== 歌词 ============================================================================
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun LyricPage(
     settings: Settings,
+    fonts: List<UserFont>,
     onUpdate: ((Settings) -> Settings) -> Unit,
+    onPickFont: () -> Unit,
+    onQrFont: () -> Unit,
+    onDeleteFont: (UserFont) -> Unit,
+    status: String?,
     firstFocus: FocusRequester,
     modifier: Modifier = Modifier,
 ) {
+    val currentFamily = rememberAppFontFamily()
     SettingsPageScaffold(modifier) {
+        Section("歌词字体") {
+            // 预览：用当前选中的字体渲染一行示例歌词，切换后即时可见。
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp)
+                    .background(AppColors.Card, RoundedCornerShape(10.dp))
+                    .padding(14.dp),
+            ) {
+                Text(
+                    "夜空中最亮的星",
+                    color = AppColors.TextPrimary,
+                    fontFamily = currentFamily,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "歌词预览 ABCabc 123 · 字号 ${settings.lyricFontSizeSp}sp",
+                    color = AppColors.TextSecondary,
+                    fontFamily = currentFamily,
+                    fontSize = 15.sp,
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                // 内置：系统默认 + 苹方 + 小抖动侠情书
+                TvPill(
+                    onClick = { onUpdate { it.copy(appFontFamily = AppFontFamily.SYSTEM, customFontId = null) } },
+                    selected = settings.appFontFamily == AppFontFamily.SYSTEM,
+                    modifier = Modifier.focusRequester(firstFocus),
+                ) { Text(AppFontFamily.SYSTEM.label, fontSize = 13.sp) }
+                TvPill(
+                    onClick = { onUpdate { it.copy(appFontFamily = AppFontFamily.PINGFANG_HK, customFontId = null) } },
+                    selected = settings.appFontFamily == AppFontFamily.PINGFANG_HK,
+                ) {
+                    Text(AppFontFamily.PINGFANG_HK.label, fontSize = 13.sp, fontFamily = pingFangFontFamily())
+                }
+                TvPill(
+                    onClick = { onUpdate { it.copy(appFontFamily = AppFontFamily.XIAODOU, customFontId = null) } },
+                    selected = settings.appFontFamily == AppFontFamily.XIAODOU,
+                ) {
+                    Text(AppFontFamily.XIAODOU.label, fontSize = 13.sp, fontFamily = xiaodouFontFamily())
+                }
+                // 用户上传的字体：名字本身就用自己的字体渲染，等于逐项预览
+                fonts.forEach { font ->
+                    val family = rememberUserFontFamily(font.id)
+                    TvPill(
+                        onClick = {
+                            onUpdate { it.copy(appFontFamily = AppFontFamily.CUSTOM, customFontId = font.id) }
+                        },
+                        selected = settings.appFontFamily == AppFontFamily.CUSTOM && settings.customFontId == font.id,
+                    ) {
+                        Text(
+                            font.name,
+                            fontFamily = family,
+                            fontSize = 13.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+            if (fonts.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    fonts.forEach { font ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "${font.name}  %.1fMB".format(font.sizeBytes / 1024f / 1024f),
+                                color = AppColors.TextSecondary,
+                                fontSize = 12.sp,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            TvPill(
+                                onClick = { onDeleteFont(font) },
+                                accent = AppColors.Danger,
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                            ) { Text("删除", fontSize = 12.sp) }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                TvPill(onClick = onPickFont, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("上传字体", fontSize = 13.sp)
+                    }
+                }
+                QrPill("扫码上传", onQrFont)
+            }
+            Spacer(Modifier.height(8.dp))
+            HintText(
+                "只支持 ${FontImportRules.allowedExtensions.joinToString(" / ")}，单个不超过 ${FontImportRules.MAX_BYTES_LABEL}。" +
+                    "字体仅作用于歌词文字，不影响其他界面；上传后自动应用。",
+            )
+            status?.let { Text(it, color = AppColors.TextSecondary, fontSize = 12.sp) }
+        }
+
+        Section("全屏歌词特效") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FullscreenLyricFx.entries.forEach { fx ->
+                    TvPill(
+                        onClick = { onUpdate { it.copy(fullscreenLyricFx = fx) } },
+                        selected = settings.fullscreenLyricFx == fx,
+                    ) { Text(fx.label, fontSize = 13.sp) }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            HintText("全屏歌词特效（参考 YuMusic / QQ 音乐）：商籁为雅致的居中三行歌词 + 细线分隔；星海为深蓝星海背景 + 发光歌词。选择后播放页会以全屏歌词替代「封面 + 歌词」舞台。")
+        }
+
         Section("歌词翻译") {
             TvSwitchRow("显示歌词翻译（外语歌有翻译时在每句下方显示）", settings.showLyricTranslation) {
                 onUpdate { it.copy(showLyricTranslation = !it.showLyricTranslation) }
@@ -197,7 +328,6 @@ internal fun LyricPage(
                             it.copy(lyricFontSizeSp = LyricFont.step(it.lyricFontSizeSp, LyricFont.STEP))
                         }
                     },
-                    modifier = Modifier.focusRequester(firstFocus),
                 )
                 Stepper(
                     label = "行距",
@@ -317,144 +447,12 @@ private fun LyricSourceSection(
 @Composable
 internal fun AppearancePage(
     settings: Settings,
-    fonts: List<UserFont>,
     onUpdate: ((Settings) -> Settings) -> Unit,
-    onPickFont: () -> Unit,
-    onQrFont: () -> Unit,
-    onDeleteFont: (UserFont) -> Unit,
-    status: String?,
     firstFocus: FocusRequester,
     modifier: Modifier = Modifier,
 ) {
-    val currentFamily = rememberAppFontFamily()
     SettingsPageScaffold(modifier) {
-        Section("全局字体") {
-            // 预览：用当前选中的字体渲染一行示例文字，切换后即时可见。
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp)
-                    .background(AppColors.Card, RoundedCornerShape(10.dp))
-                    .padding(14.dp),
-            ) {
-                Text(
-                    "歌词预览 ABCabc 123",
-                    color = AppColors.TextPrimary,
-                    fontFamily = currentFamily,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "夜空中最亮的星 · 字号 ${settings.lyricFontSizeSp}sp",
-                    color = AppColors.TextSecondary,
-                    fontFamily = currentFamily,
-                    fontSize = 14.sp,
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                // 内置：系统默认 + 苹方
-                TvPill(
-                    onClick = { onUpdate { it.copy(appFontFamily = AppFontFamily.SYSTEM, customFontId = null) } },
-                    selected = settings.appFontFamily == AppFontFamily.SYSTEM,
-                    modifier = Modifier.focusRequester(firstFocus),
-                ) { Text(AppFontFamily.SYSTEM.label, fontSize = 13.sp) }
-                TvPill(
-                    onClick = { onUpdate { it.copy(appFontFamily = AppFontFamily.PINGFANG_HK, customFontId = null) } },
-                    selected = settings.appFontFamily == AppFontFamily.PINGFANG_HK,
-                ) {
-                    Text(AppFontFamily.PINGFANG_HK.label, fontSize = 13.sp, fontFamily = pingFangFontFamily())
-                }
-                TvPill(
-                    onClick = { onUpdate { it.copy(appFontFamily = AppFontFamily.XIAODOU, customFontId = null) } },
-                    selected = settings.appFontFamily == AppFontFamily.XIAODOU,
-                ) {
-                    Text(AppFontFamily.XIAODOU.label, fontSize = 13.sp, fontFamily = xiaodouFontFamily())
-                }
-                // 用户上传的字体：名字本身就用自己的字体渲染，等于逐项预览
-                fonts.forEach { font ->
-                    val family = rememberUserFontFamily(font.id)
-                    TvPill(
-                        onClick = {
-                            onUpdate { it.copy(appFontFamily = AppFontFamily.CUSTOM, customFontId = font.id) }
-                        },
-                        selected = settings.appFontFamily == AppFontFamily.CUSTOM && settings.customFontId == font.id,
-                    ) {
-                        Text(
-                            font.name,
-                            fontFamily = family,
-                            fontSize = 13.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-            }
-            if (fonts.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    fonts.forEach { font ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                "${font.name}  %.1fMB".format(font.sizeBytes / 1024f / 1024f),
-                                color = AppColors.TextSecondary,
-                                fontSize = 12.sp,
-                                modifier = Modifier.weight(1f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            TvPill(
-                                onClick = { onDeleteFont(font) },
-                                accent = AppColors.Danger,
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                            ) { Text("删除", fontSize = 12.sp) }
-                        }
-                    }
-                }
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                TvPill(onClick = onPickFont, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("上传字体", fontSize = 13.sp)
-                    }
-                }
-                QrPill("扫码上传", onQrFont)
-            }
-            Spacer(Modifier.height(8.dp))
-            HintText(
-                "只支持 ${FontImportRules.allowedExtensions.joinToString(" / ")}，单个不超过 ${FontImportRules.MAX_BYTES_LABEL}。" +
-                    "字体作用于整个应用的文字（不只是歌词）；上传后自动应用。",
-            )
-            status?.let { Text(it, color = AppColors.TextSecondary, fontSize = 12.sp) }
-        }
-
-        Section("播放界面UI") {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PlayerUi.entries.forEach { ui ->
-                    TvPill(
-                        onClick = { onUpdate { it.copy(playerUi = ui) } },
-                        selected = settings.playerUi == ui,
-                    ) { Text(ui.label, fontSize = 13.sp) }
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            HintText(
-                when (settings.playerUi) {
-                    PlayerUi.NETEASE -> "完全复刻网易云播放界面：左侧大封面、右侧歌词与歌名；纯 Compose 绘制，老电视与投影仪也能流畅运行。"
-                    PlayerUi.BETTERLYRICS -> "复刻 BetterLyrics 标准界面：模糊专辑铺满全屏作背景，居中一张半透明冷色玻璃卡片承载「左封面 + 右双语歌词」（标题与歌手移到封面下方），更沉浸。"
-                },
-            )
-            Spacer(Modifier.height(12.dp))
+        Section("播放页布局") {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 PlayerLayout.entries.forEach { layout ->
                     TvPill(
@@ -464,7 +462,7 @@ internal fun AppearancePage(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            HintText("切换播放页里唱片和歌词谁在左、谁在右（网易云同款为「唱片左 · 歌词右」）。")
+            HintText("切换播放页里唱片和歌词谁在左、谁在右（默认「歌词左 · 唱片右」）。")
         }
 
         Section("唱片") {
@@ -497,7 +495,7 @@ internal fun AppearancePage(
                 },
             )
             Spacer(Modifier.height(8.dp))
-            HintText("播放页封面 / 唱片整体大小的缩放系数（步进 0.1，范围 ${CoverScale.MIN}–${CoverScale.MAX}，默认 ${CoverScale.DEFAULT}）。封面、动感波光 / 鲸鱼粒子中心会同步缩放，实时生效。")
+            HintText("播放页封面 / 唱片整体大小的缩放系数（步进 0.1，范围 ${CoverScale.MIN}–${CoverScale.MAX}，默认 ${CoverScale.DEFAULT}）。封面与动效中心会同步缩放，实时生效。")
         }
 
         Section("播放页动效") {
@@ -510,7 +508,7 @@ internal fun AppearancePage(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            HintText("动感波光是用 Compose 画的随音量向外扩散的波纹；鲸鱼特效复刻网易云「鲸云音效」，是从封面中心向外辐射、随距离淡出的三角形粒子。两者均从封面中心向外延伸并跟随唱片左右位置，不依赖 Web 内核，老电视和投影仪也能跑。")
+            HintText("动感波光是随音量向外扩散的柔和波纹；波纹特效是更厚、更慢的同心水波涟漪（参考 BMMusicPlayer）；宇宙尘埃特效是细碎尘埃 / 星点在背景中缓慢漂浮闪烁（参考 ParticleView）。三者均从封面中心向外延伸并跟随唱片左右位置，纯 Compose 绘制，老电视和投影仪也能跑。")
         }
 
         Section("歌单列数") {
@@ -819,7 +817,7 @@ internal fun AboutPage(
 ) {
     val context = LocalContext.current
     val deviceRows = remember { DeviceInfo.deviceRows(context) }
-    val hwFormats = remember { DeviceInfo.hardwareFormats() }
+    val hwFormats = remember { DeviceInfo.hardwareFormats(audioOnly = true) }
     SettingsPageScaffold(modifier) {
         Section("调试") {
             TvSwitchRow("显示调试信息", settings.showDebugInfo) {
@@ -854,21 +852,28 @@ internal fun AboutPage(
             }
         }
 
-        Section("硬件解码格式") {
+        Section("硬件音频解码") {
             if (hwFormats.isEmpty()) {
-                Text("未检测到可硬解的常用格式", color = AppColors.TextMuted, fontSize = 13.sp)
+                Text("未检测到可硬解的常用音频格式", color = AppColors.TextMuted, fontSize = 13.sp)
             } else {
                 androidx.compose.foundation.layout.FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     for (fmt in hwFormats) {
-                        TvPill(onClick = { }, selected = true) { Text(fmt, fontSize = 13.sp) }
+                        // 仅展示，不可点击 / 不可聚焦（本机信息，不需要操作）。
+                        Box(
+                            modifier = Modifier
+                                .background(AppColors.Card, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                        ) {
+                            Text(fmt, color = AppColors.TextPrimary, fontSize = 13.sp)
+                        }
                     }
                 }
             }
             Spacer(Modifier.height(8.dp))
-            HintText("自动探测本机 MediaCodec 硬件解码器得到的音视频格式（H.264 / H.265 / AAC / FLAC …）。软解一切正常时无需关心，仅供排查设备兼容性。")
+            HintText("自动探测本机 MediaCodec 硬件解码器得到的音频格式（AAC / MP3 / FLAC / Opus …）。仅供排查设备兼容性，无需操作。")
         }
 
         UpdateSection(firstFocus)
