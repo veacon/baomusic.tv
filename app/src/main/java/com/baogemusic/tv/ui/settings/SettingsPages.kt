@@ -505,7 +505,10 @@ internal fun AppearancePage(
         }
 
         Section("全屏歌词特效") {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 FullscreenLyricFx.entries.forEach { fx ->
                     TvPill(
                         onClick = { onUpdate { it.copy(fullscreenLyricFx = fx) } },
@@ -514,7 +517,7 @@ internal fun AppearancePage(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            HintText("光感：居中三行歌词 + 柔和暗角，逐句淡入；星海：深蓝星海背景 + 蓝白辉光歌词。开启后播放页进入全屏歌词，左上角显示歌名与歌手，底部控制栏仍会在按键时浮出。")
+            HintText("光感：居中三行 + 柔和暗角；星海：深蓝星海 + 蓝白辉光；极光：流动极光光带 + 薄荷绿辉光；霓虹：赛博网格 + 青/品红霓虹；胶片：电影黑边 + 颗粒 + 底部字幕。开启后播放页进入全屏歌词，左上角显示歌名与歌手，底部控制栏按键时浮出。")
         }
 
         Section("歌单列数") {

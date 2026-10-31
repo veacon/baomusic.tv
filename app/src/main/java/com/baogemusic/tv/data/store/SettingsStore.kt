@@ -107,15 +107,21 @@ enum class PlayerFx(val label: String) {
     DUST("宇宙尘埃特效"),
 }
 
-/** 全屏歌词特效（参考 YuMusic / QQ 音乐）：
+/** 全屏歌词特效（参考 YuMusic / QQ 音乐 / Folia / aurora-player）：
  *  - NONE：常规两栏歌词；
  *  - LIGHT（光感）：全屏居中三行歌词 + 柔和暗角，逐句淡入（原「商籁」）；
- *  - STARSEA（星海）：全屏深蓝星海背景 + 蓝白辉光歌词。 */
+ *  - STARSEA（星海）：全屏深蓝星海背景 + 蓝白辉光歌词；
+ *  - AURORA（极光）：流动的极光光带背景 + 薄荷绿辉光歌词；
+ *  - NEON（霓虹）：赛博网格 + 扫描光，青/品红霓虹歌词；
+ *  - CINEMA（胶片）：电影黑边 + 颗粒，底部字幕式歌词。 */
 @Serializable
 enum class FullscreenLyricFx(val label: String) {
     NONE("关闭"),
     @SerialName("SONNET") LIGHT("光感"),
     STARSEA("星海"),
+    AURORA("极光"),
+    NEON("霓虹"),
+    CINEMA("胶片"),
 }
 
 /** 歌单 / 我的页面的卡片列数。列数越多卡片越小。 */

@@ -408,7 +408,10 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
                     fullscreenLyricFx = when (s.fullscreenLyricFx) {
                       FullscreenLyricFx.NONE -> FullscreenLyricFx.LIGHT
                       FullscreenLyricFx.LIGHT -> FullscreenLyricFx.STARSEA
-                      FullscreenLyricFx.STARSEA -> FullscreenLyricFx.NONE
+                      FullscreenLyricFx.STARSEA -> FullscreenLyricFx.AURORA
+                      FullscreenLyricFx.AURORA -> FullscreenLyricFx.NEON
+                      FullscreenLyricFx.NEON -> FullscreenLyricFx.CINEMA
+                      FullscreenLyricFx.CINEMA -> FullscreenLyricFx.NONE
                     },
                   )
                 }
@@ -1746,13 +1749,15 @@ private fun CoverBackdrop(picURL: String?) {
   }
 }
 
-// ============== 全屏歌词特效（光感 / 星海）=====================================================
+// ============== 全屏歌词特效（光感 / 星海 / 极光 / 霓虹 / 胶片）=================================
 
 /**
- * 全屏歌词特效（参考 YuMusic / QQ 音乐），铺满整屏，左上角显示歌名 / 歌手：
- * - 光感：模糊专辑 + 柔和径向暗角，居中三行歌词，逐句淡入（无分隔线）；
- * - 星海：深蓝星海背景 + 漂浮星点，当前句发蓝白辉光。
- * 纯 Compose 绘制，切换当前句用淡入淡出。
+ * 全屏歌词特效（参考 YuMusic / QQ 音乐 / Folia / aurora-player），铺满整屏，左上角显示歌名 / 歌手：
+ * - 光感：模糊专辑 + 柔和暗角，居中三行，逐句淡入；
+ * - 星海：深蓝星海 + 漂浮星点，蓝白辉光；
+ * - 极光：流动极光光带，薄荷绿辉光；
+ * - 霓虹：赛博透视网格 + 扫描光，青/品红霓虹；
+ * - 胶片：电影黑边 + 颗粒，底部字幕式歌词。
  */
 @Composable
 private fun FullscreenLyricStage(
@@ -1770,39 +1775,55 @@ private fun FullscreenLyricStage(
   val active = LyricParser.activeIndex(positionMs / 1000.0, lyrics)
   val prev = lyrics.getOrNull(active - 1)
   val next = lyrics.getOrNull(active + 1)
-  val starSea = fx == FullscreenLyricFx.STARSEA
-  val activeColor = if (starSea) Color(0xFFC7E6FF) else AppColors.LyricActive
-  val glowRadius = if (starSea) 34f else 20f
+  val cinema = fx == FullscreenLyricFx.CINEMA
+  val activeColor = when (fx) {
+    FullscreenLyricFx.STARSEA -> Color(0xFFC7E6FF)
+    FullscreenLyricFx.AURORA -> Color(0xFFB8FFE6)
+    FullscreenLyricFx.NEON -> Color(0xFF7BF0FF)
+    FullscreenLyricFx.CINEMA -> Color.White
+    else -> AppColors.LyricActive
+  }
+  val glowRadius = when (fx) {
+    FullscreenLyricFx.STARSEA -> 34f
+    FullscreenLyricFx.AURORA -> 30f
+    FullscreenLyricFx.NEON -> 42f
+    FullscreenLyricFx.CINEMA -> 26f
+    else -> 20f
+  }
 
   Box(modifier.fillMaxSize()) {
     // ---- 背景：铺满整屏 ----
-    if (starSea) {
-      StarField(Modifier.fillMaxSize())
-    } else {
-      // 光感：径向暗角（中间透、四周压暗）+ 上下渐隐，突出中间歌词。
-      Box(
-        Modifier.fillMaxSize().background(
-          Brush.radialGradient(
-            colors = listOf(
-              Color.Transparent,
-              AppColors.BgDeep.copy(alpha = 0.40f),
-              AppColors.BgDeep.copy(alpha = 0.86f),
-            ),
-            radius = 2200f,
-          ),
-        ),
-      )
-      Box(
-        Modifier.fillMaxSize().background(
-          Brush.verticalGradient(
-            listOf(
-              AppColors.BgDeep.copy(alpha = 0.55f),
-              Color.Transparent,
-              AppColors.BgDeep.copy(alpha = 0.72f),
+    when (fx) {
+      FullscreenLyricFx.STARSEA -> StarField(Modifier.fillMaxSize())
+      FullscreenLyricFx.AURORA -> AuroraBackdrop(Modifier.fillMaxSize())
+      FullscreenLyricFx.NEON -> NeonBackdrop(Modifier.fillMaxSize())
+      FullscreenLyricFx.CINEMA -> CinemaBackdrop(Modifier.fillMaxSize())
+      else -> {
+        // 光感：径向暗角（中间透、四周压暗）+ 上下渐隐，突出中间歌词。
+        Box(
+          Modifier.fillMaxSize().background(
+            Brush.radialGradient(
+              colors = listOf(
+                Color.Transparent,
+                AppColors.BgDeep.copy(alpha = 0.40f),
+                AppColors.BgDeep.copy(alpha = 0.86f),
+              ),
+              radius = 2200f,
             ),
           ),
-        ),
-      )
+        )
+        Box(
+          Modifier.fillMaxSize().background(
+            Brush.verticalGradient(
+              listOf(
+                AppColors.BgDeep.copy(alpha = 0.55f),
+                Color.Transparent,
+                AppColors.BgDeep.copy(alpha = 0.72f),
+              ),
+            ),
+          ),
+        )
+      }
     }
 
     // ---- 左上角：歌名 + 歌手 ----
@@ -1825,7 +1846,6 @@ private fun FullscreenLyricStage(
       )
     }
 
-    // ---- 居中三行歌词 ----
     if (lyrics.isEmpty()) {
       Text(
         "暂无歌词",
@@ -1833,7 +1853,57 @@ private fun FullscreenLyricStage(
         fontSize = 18.sp,
         modifier = Modifier.align(Alignment.Center),
       )
+    } else if (cinema) {
+      // ---- 胶片：底部字幕式（只显示当前句 + 翻译）----
+      Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+          .align(Alignment.BottomCenter)
+          .fillMaxWidth()
+          .padding(start = 120.dp, end = 120.dp, bottom = 150.dp),
+      ) {
+        androidx.compose.animation.AnimatedContent(
+          targetState = active,
+          transitionSpec = {
+            androidx.compose.animation.fadeIn(tween(400)) togetherWith
+              androidx.compose.animation.fadeOut(tween(260))
+          },
+          label = "cinemaLyric",
+        ) { idx ->
+          val l = lyrics.getOrNull(idx)
+          Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+              l?.text ?: "",
+              color = activeColor,
+              fontSize = (fontSp * 0.92f).sp,
+              lineHeight = (fontSp * 0.92f * lineFactor).sp,
+              fontFamily = fontFamily,
+              fontWeight = FontWeight.Medium,
+              textAlign = TextAlign.Center,
+              style = androidx.compose.ui.text.TextStyle(
+                shadow = androidx.compose.ui.graphics.Shadow(
+                  color = Color.Black.copy(alpha = 0.85f),
+                  blurRadius = glowRadius,
+                ),
+              ),
+              modifier = Modifier.fillMaxWidth(),
+            )
+            l?.translation?.takeIf { showTranslation }?.let { t ->
+              Spacer(Modifier.height(8.dp))
+              Text(
+                t,
+                color = Color.White.copy(alpha = 0.72f),
+                fontSize = (fontSp * 0.5f).sp,
+                fontFamily = fontFamily,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+              )
+            }
+          }
+        }
+      }
     } else {
+      // ---- 居中三行（光感 / 星海 / 极光 / 霓虹）----
       Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -1941,6 +2011,169 @@ private fun StarField(modifier: Modifier = Modifier) {
         blendMode = BlendMode.Screen,
       )
     }
+  }
+}
+
+/** 极光：多条流动的极光光带，从深色底向上透出。 */
+@Composable
+private fun AuroraBackdrop(modifier: Modifier = Modifier) {
+  val transition = rememberInfiniteTransition(label = "auroraFx")
+  val t by transition.animateFloat(
+    initialValue = 0f,
+    targetValue = 1f,
+    animationSpec = infiniteRepeatable(animation = tween(durationMillis = 18_000, easing = LinearEasing)),
+    label = "auroraTime",
+  )
+  androidx.compose.foundation.Canvas(
+    modifier = modifier.fillMaxSize().graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen },
+  ) {
+    if (size.minDimension <= 0f) return@Canvas
+    drawRect(
+      brush = Brush.verticalGradient(
+        listOf(Color(0xFF04101C), Color(0xFF071826), Color(0xFF0A1020)),
+      ),
+    )
+    val colors = listOf(Color(0xFF22E0A8), Color(0xFF3AA6FF), Color(0xFF9B6BFF))
+    for (i in 0 until 3) {
+      val phase = t * 2f * PI.toFloat() + i * 2.1f
+      val cx = size.width * (0.30f + i * 0.20f)
+      val halfW = size.width * (0.10f + i * 0.02f)
+      val path = Path()
+      val steps = 26
+      for (s in 0..steps) {
+        val yy = size.height * s / steps
+        val off = sin(yy / size.height * 4.2f + phase) * size.width * 0.055f
+        val x = cx + off - halfW
+        if (s == 0) path.moveTo(x, yy) else path.lineTo(x, yy)
+      }
+      for (s in steps downTo 0) {
+        val yy = size.height * s / steps
+        val off = sin(yy / size.height * 4.2f + phase) * size.width * 0.055f
+        path.lineTo(cx + off + halfW, yy)
+      }
+      path.close()
+      drawPath(
+        path = path,
+        brush = Brush.verticalGradient(
+          listOf(Color.Transparent, colors[i].copy(alpha = 0.22f), Color.Transparent),
+        ),
+        blendMode = BlendMode.Screen,
+      )
+    }
+    // 顶部光晕
+    val r = size.height * 0.55f
+    drawCircle(
+      brush = Brush.radialGradient(
+        colors = listOf(Color(0xFF3AA6FF).copy(alpha = 0.10f), Color.Transparent),
+        center = Offset(size.width * 0.5f, 0f),
+        radius = r,
+      ),
+      radius = r,
+      center = Offset(size.width * 0.5f, 0f),
+      blendMode = BlendMode.Screen,
+    )
+  }
+}
+
+/** 霓虹：赛博透视网格 + 扫描光，青 / 品红低饱和点缀。 */
+@Composable
+private fun NeonBackdrop(modifier: Modifier = Modifier) {
+  val transition = rememberInfiniteTransition(label = "neonFx")
+  val t by transition.animateFloat(
+    initialValue = 0f,
+    targetValue = 1f,
+    animationSpec = infiniteRepeatable(animation = tween(durationMillis = 10_000, easing = LinearEasing)),
+    label = "neonTime",
+  )
+  androidx.compose.foundation.Canvas(
+    modifier = modifier.fillMaxSize().graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen },
+  ) {
+    if (size.minDimension <= 0f) return@Canvas
+    drawRect(
+      brush = Brush.verticalGradient(
+        listOf(Color(0xFF07060F), Color(0xFF0B0A1A), Color(0xFF05040C)),
+      ),
+    )
+    val horizon = size.height * 0.62f
+    val cyan = Color(0xFF6FF3FF)
+    val magenta = Color(0xFFFF4FD8)
+    val pulse = 0.10f + 0.05f * sin(t * 2f * PI.toFloat())
+    // 竖线：向消失点汇聚
+    val vCount = 14
+    for (i in -vCount..vCount) {
+      val xTop = size.width * 0.5f + i * size.width * 0.006f
+      val xBottom = size.width * 0.5f + i * (size.width / vCount)
+      drawLine(
+        color = cyan.copy(alpha = pulse),
+        start = Offset(xTop, horizon),
+        end = Offset(xBottom, size.height),
+        strokeWidth = 1.2f,
+      )
+    }
+    // 横线：越往下越疏
+    val hCount = 10
+    for (i in 1..hCount) {
+      val p = i.toFloat() / hCount
+      val y = horizon + (size.height - horizon) * (p * p)
+      drawLine(
+        color = magenta.copy(alpha = pulse * 0.8f),
+        start = Offset(0f, y),
+        end = Offset(size.width, y),
+        strokeWidth = 1f,
+      )
+    }
+    // 中心霓虹光晕
+    val r = size.minDimension * 0.55f
+    drawCircle(
+      brush = Brush.radialGradient(
+        colors = listOf(cyan.copy(alpha = 0.10f), Color.Transparent),
+        center = Offset(size.width * 0.5f, horizon * 0.75f),
+        radius = r,
+      ),
+      radius = r,
+      center = Offset(size.width * 0.5f, horizon * 0.75f),
+      blendMode = BlendMode.Screen,
+    )
+  }
+}
+
+/** 胶片：上下电影黑边 + 细颗粒 + 纵向暗角。 */
+@Composable
+private fun CinemaBackdrop(modifier: Modifier = Modifier) {
+  val transition = rememberInfiniteTransition(label = "cinemaFx")
+  val t by transition.animateFloat(
+    initialValue = 0f,
+    targetValue = 1f,
+    animationSpec = infiniteRepeatable(animation = tween(durationMillis = 7_000, easing = LinearEasing)),
+    label = "cinemaTime",
+  )
+  val grain = remember {
+    val rnd = kotlin.random.Random(99)
+    List(90) { floatArrayOf(rnd.nextFloat(), rnd.nextFloat(), 0.4f + rnd.nextFloat() * 1.6f, rnd.nextFloat()) }
+  }
+  androidx.compose.foundation.Canvas(
+    modifier = modifier.fillMaxSize().graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen },
+  ) {
+    if (size.minDimension <= 0f) return@Canvas
+    drawRect(Color(0xFF050506))
+    for (g in grain) {
+      val a = (0.02f + 0.05f * abs(sin((t * g[2] + g[3]) * 2f * PI.toFloat()))).coerceIn(0f, 1f)
+      drawCircle(
+        color = Color.White.copy(alpha = a),
+        radius = g[2] * 1.3f,
+        center = Offset(g[0] * size.width, g[1] * size.height),
+      )
+    }
+    // 上下电影黑边
+    val bar = size.height * 0.10f
+    drawRect(Color.Black, topLeft = Offset(0f, 0f), size = Size(size.width, bar))
+    drawRect(Color.Black, topLeft = Offset(0f, size.height - bar), size = Size(size.width, bar))
+    // 纵向暗角
+    drawRect(
+      brush = Brush.verticalGradient(
+        listOf(Color.Black.copy(alpha = 0.35f), Color.Transparent, Color.Black.copy(alpha = 0.45f)),
+      ),
+    )
   }
 }
 
