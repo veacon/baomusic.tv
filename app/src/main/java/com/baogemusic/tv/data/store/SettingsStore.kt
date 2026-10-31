@@ -23,8 +23,8 @@ enum class LyricAlignment(val label: String) {
 
 /** 歌词行距（倍率）。1.0–3.0，步长 0.1（设置页里是步进器）。行高 = 字号 × 该值。 */
 object LyricScaleRange {
-    const val MIN = 1.0f
-    const val MAX = 3.0f
+    const val MIN = 0.5f
+    const val MAX = 2.0f
     const val STEP = 0.1f
     /** 1.0 倍时的行高倍率（字号 × 该值）。 */
     const val BASE_LINE_FACTOR = 1.5f
@@ -57,6 +57,7 @@ object LyricFont {
 enum class AppFontFamily(val label: String) {
     SYSTEM("系统默认"),
     PINGFANG_HK("苹方-港"),
+    XIAODOU("小抖动侠情书"),
     CUSTOM("自定义字体"),
 }
 
@@ -93,13 +94,27 @@ enum class DiscShape(val label: String) {
     ROUNDED_SQUARE("圆角方形"),
 }
 
-/** 播放页背景动效。参考 QQ 音乐「动感波光」（随音量向外扩散的波纹）。
- *  纯 Compose Canvas 绘制（不依赖 Web 内核），在 Android 8 的电视 / 投影仪上也能跑。
- *  注意：原「神光」已按需求移除，仅保留「动感波光」。 */
+/** 播放页背景动效。
+ *  - WAVE：参考 QQ 音乐「动感波光」（随音量向外扩散的波纹）；
+ *  - WHALE：复刻网易云「鲸云音效」——从封面中心向外辐射的三角形粒子，随距离淡出（取自
+ *    https://github.com/tyhjh/JinyunEffect，改名为「鲸鱼特效」）。
+ *  全部用纯 Compose Canvas 绘制（不依赖 Web 内核），在 Android 8 的电视 / 投影仪上也能跑。
+ *  注意：原「神光」已按需求移除，仅保留「动感波光」与「鲸鱼特效」。 */
 @Serializable
 enum class PlayerFx(val label: String) {
     OFF("关闭"),
     WAVE("动感波光"),
+    WHALE("鲸鱼特效"),
+}
+
+/** 播放界面整体风格。
+ *  NETEASE 为网易云同款：左封面 + 右歌词，直接铺在模糊专辑背景上；
+ *  BETTERLYRICS 为 BetterLyrics 标准界面：模糊专辑铺满全屏作背景，居中一张半透明圆角卡片
+ *  承载「左封面 + 右双语歌词」（标题 / 歌手移到封面下方），更沉浸、偏冷色玻璃质感。 */
+@Serializable
+enum class PlayerUi(val label: String) {
+    NETEASE("复刻网易"),
+    BETTERLYRICS("BetterLyrics"),
 }
 
 /** 歌单 / 我的页面的卡片列数。列数越多卡片越小。 */
@@ -107,6 +122,19 @@ object GridColumns {
     val choices = listOf(4, 5, 6, 7, 8)
     const val DEFAULT = 5
     fun clamp(value: Int): Int = value.coerceIn(choices.first(), choices.last())
+}
+
+/** 播放页唱片（封面）整体大小的缩放系数：0.5–1.2，步长 0.1，默认 1.0（即各布局的原始尺寸）。
+ *  改动即时生效，封面、动感波光 / 鲸鱼粒子中心都会同步缩放。 */
+object CoverScale {
+    const val MIN = 0.5f
+    const val MAX = 1.2f
+    const val STEP = 0.1f
+    const val DEFAULT = 1.0f
+    fun clamp(value: Float): Float = value.coerceIn(MIN, MAX)
+    /** 步长 0.1：先按步长归一再乘回，避免 0.50000001 这类浮点累积误差。 */
+    fun step(value: Float, delta: Float): Float =
+        clamp((((value + delta) / STEP).roundToInt()) * STEP)
 }
 
 /** 图片磁盘缓存上限（GB）。内存缓存另在 ImageLoader 里按进程可用内存封顶（≤64MB），
@@ -168,6 +196,11 @@ data class Settings(
     val discShape: DiscShape = DiscShape.ROUNDED_SQUARE,
     /** 播放页背景动效：关闭 / 动感波光（波纹从封面中心向外扩散，跟随唱片左右位置）。 */
     val playerFx: PlayerFx = PlayerFx.WAVE,
+    /** 播放界面整体风格：复刻网易（默认）或 BetterLyrics（沉浸式模糊背景 + 居中半透明卡片）。 */
+    val playerUi: PlayerUi = PlayerUi.NETEASE,
+    /** 播放页唱片（封面）整体大小的缩放系数：0.5–1.2（步长 0.1，默认 1.0）。
+     *  改动即时生效，封面、动感波光 / 鲸鱼粒子中心都会同步缩放。详见 [CoverScale]。 */
+    val coverScale: Float = CoverScale.DEFAULT,
     /** 歌单页 / 我的页面的卡片列数（4–8），列数越多卡片越小。 */
     val gridColumns: Int = GridColumns.DEFAULT,
     /** 图片磁盘缓存上限（GB）。详见 [CacheQuota]。 */

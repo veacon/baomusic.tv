@@ -83,7 +83,7 @@ private fun SwitchGraphic(checked: Boolean) {
 }
 
 /**
- * 步进控件：− / 数值 / ＋。用于歌词字号与行距倍率（1.0–3.0，步进 0.2）。
+ * 步进控件：− / 数值 / ＋。用于歌词字号（sp）与行距倍率（0.5–2.0，步进 0.1）。
  * [valueText] 由调用方格式化（如 "1.4×"）。
  */
 @Composable

@@ -56,6 +56,7 @@ import com.baogemusic.tv.data.store.CacheManager
 import com.baogemusic.tv.data.store.CacheQuota
 import com.baogemusic.tv.data.store.DeviceInfo
 import com.baogemusic.tv.data.store.DiscShape
+import com.baogemusic.tv.data.store.CoverScale
 import com.baogemusic.tv.data.store.FontImportRules
 import com.baogemusic.tv.data.store.GridColumns
 import com.baogemusic.tv.data.store.LyricAlignment
@@ -64,6 +65,7 @@ import com.baogemusic.tv.data.store.LyricScaleRange
 import com.baogemusic.tv.data.store.LyricSource
 import com.baogemusic.tv.data.store.PlayerFx
 import com.baogemusic.tv.data.store.PlayerLayout
+import com.baogemusic.tv.data.store.PlayerUi
 import com.baogemusic.tv.data.store.Settings
 import com.baogemusic.tv.data.store.UserFont
 import com.baogemusic.tv.data.store.VinylColor
@@ -76,43 +78,11 @@ import com.baogemusic.tv.ui.components.TvSwitchRow
 import com.baogemusic.tv.ui.components.TvTextFieldHost
 import com.baogemusic.tv.ui.theme.AppColors
 import com.baogemusic.tv.ui.theme.pingFangFontFamily
+import com.baogemusic.tv.ui.theme.xiaodouFontFamily
 import com.baogemusic.tv.ui.theme.rememberAppFontFamily
 import com.baogemusic.tv.ui.theme.rememberUserFontFamily
 
-// ============== 通用 ============================================================================
-
-@Composable
-internal fun GeneralPage(
-    settings: Settings,
-    onUpdate: ((Settings) -> Settings) -> Unit,
-    firstFocus: FocusRequester,
-    modifier: Modifier = Modifier,
-) {
-    SettingsPageScaffold(modifier) {
-        Section("发现页音源") {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SourceID.homePageOrder.forEach { src ->
-                    val active = src in settings.homeSources
-                    TvPill(
-                        onClick = {
-                            onUpdate { s ->
-                                val next = if (active) s.homeSources - src else s.homeSources + src
-                                // 不允许清空：至少留一个源，发现页才有内容。
-                                s.copy(homeSources = if (next.isEmpty()) s.homeSources else next)
-                            }
-                        },
-                        selected = active,
-                        modifier = if (src == SourceID.homePageOrder.first()) Modifier.focusRequester(firstFocus) else Modifier,
-                    ) { Text(src.displayName, fontSize = 13.sp) }
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            HintText("勾选哪些平台参与推荐页（首页）的内容聚合，变化实时生效。")
-        }
-    }
-}
-
-// ============== 播放 ============================================================================
+// ============== 播放（含原「通用」页的发现页音源）===========================================================
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -170,6 +140,26 @@ internal fun PlaybackPage(
             Spacer(Modifier.height(8.dp))
             HintText("开启后，播放页 5 秒无操作自动隐藏进度条和播放按钮，按方向键或确认键重新显示。")
         }
+
+        Section("发现页音源") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SourceID.homePageOrder.forEach { src ->
+                    val active = src in settings.homeSources
+                    TvPill(
+                        onClick = {
+                            onUpdate { s ->
+                                val next = if (active) s.homeSources - src else s.homeSources + src
+                                // 不允许清空：至少留一个源，发现页才有内容。
+                                s.copy(homeSources = if (next.isEmpty()) s.homeSources else next)
+                            }
+                        },
+                        selected = active,
+                    ) { Text(src.displayName, fontSize = 13.sp) }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            HintText("勾选哪些平台参与推荐页（首页）的内容聚合，变化实时生效。")
+        }
     }
 }
 
@@ -225,7 +215,7 @@ internal fun LyricPage(
                 )
             }
             Spacer(Modifier.height(6.dp))
-            HintText("字号为歌词当前行的实际大小（sp），范围 ${LyricFont.MIN}–${LyricFont.MAX}；行距为倍率，步长 0.1。")
+            HintText("字号为歌词当前行的实际大小（sp），范围 ${LyricFont.MIN}–${LyricFont.MAX}；行距为倍率，范围 ${LyricScaleRange.MIN}–${LyricScaleRange.MAX}，步长 ${LyricScaleRange.STEP}。")
         }
 
         Section("歌词对齐") {
@@ -379,6 +369,12 @@ internal fun AppearancePage(
                 ) {
                     Text(AppFontFamily.PINGFANG_HK.label, fontSize = 13.sp, fontFamily = pingFangFontFamily())
                 }
+                TvPill(
+                    onClick = { onUpdate { it.copy(appFontFamily = AppFontFamily.XIAODOU, customFontId = null) } },
+                    selected = settings.appFontFamily == AppFontFamily.XIAODOU,
+                ) {
+                    Text(AppFontFamily.XIAODOU.label, fontSize = 13.sp, fontFamily = xiaodouFontFamily())
+                }
                 // 用户上传的字体：名字本身就用自己的字体渲染，等于逐项预览
                 fonts.forEach { font ->
                     val family = rememberUserFontFamily(font.id)
@@ -442,26 +438,22 @@ internal fun AppearancePage(
             status?.let { Text(it, color = AppColors.TextSecondary, fontSize = 12.sp) }
         }
 
-        Section("黑胶颜色") {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                VinylColor.entries.forEach { color ->
-                    TvPill(
-                        onClick = { onUpdate { it.copy(vinylColor = color) } },
-                        selected = settings.vinylColor == color,
-                    ) { Text(color.label, fontSize = 13.sp) }
-                }
-            }
-        }
-
         Section("播放界面UI") {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TvPill(
-                    onClick = { },
-                    selected = true,
-                ) { Text("复刻网易", fontSize = 13.sp) }
+                PlayerUi.entries.forEach { ui ->
+                    TvPill(
+                        onClick = { onUpdate { it.copy(playerUi = ui) } },
+                        selected = settings.playerUi == ui,
+                    ) { Text(ui.label, fontSize = 13.sp) }
+                }
             }
             Spacer(Modifier.height(8.dp))
-            HintText("完全复刻网易云播放界面：左侧大封面、右侧歌词与歌名；纯 Compose 绘制，老电视与投影仪也能流畅运行。")
+            HintText(
+                when (settings.playerUi) {
+                    PlayerUi.NETEASE -> "完全复刻网易云播放界面：左侧大封面、右侧歌词与歌名；纯 Compose 绘制，老电视与投影仪也能流畅运行。"
+                    PlayerUi.BETTERLYRICS -> "复刻 BetterLyrics 标准界面：模糊专辑铺满全屏作背景，居中一张半透明冷色玻璃卡片承载「左封面 + 右双语歌词」（标题与歌手移到封面下方），更沉浸。"
+                },
+            )
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 PlayerLayout.entries.forEach { layout ->
@@ -475,7 +467,16 @@ internal fun AppearancePage(
             HintText("切换播放页里唱片和歌词谁在左、谁在右（网易云同款为「唱片左 · 歌词右」）。")
         }
 
-        Section("唱片形状") {
+        Section("唱片") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                VinylColor.entries.forEach { color ->
+                    TvPill(
+                        onClick = { onUpdate { it.copy(vinylColor = color) } },
+                        selected = settings.vinylColor == color,
+                    ) { Text(color.label, fontSize = 13.sp) }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DiscShape.entries.forEach { shape ->
                     TvPill(
@@ -484,6 +485,19 @@ internal fun AppearancePage(
                     ) { Text(shape.label, fontSize = 13.sp) }
                 }
             }
+            Spacer(Modifier.height(12.dp))
+            Stepper(
+                label = "唱片大小",
+                valueText = "%.1f×".format(settings.coverScale),
+                onMinus = {
+                    onUpdate { s -> s.copy(coverScale = CoverScale.step(s.coverScale, -CoverScale.STEP)) }
+                },
+                onPlus = {
+                    onUpdate { s -> s.copy(coverScale = CoverScale.step(s.coverScale, CoverScale.STEP)) }
+                },
+            )
+            Spacer(Modifier.height(8.dp))
+            HintText("播放页封面 / 唱片整体大小的缩放系数（步进 0.1，范围 ${CoverScale.MIN}–${CoverScale.MAX}，默认 ${CoverScale.DEFAULT}）。封面、动感波光 / 鲸鱼粒子中心会同步缩放，实时生效。")
         }
 
         Section("播放页动效") {
@@ -496,7 +510,7 @@ internal fun AppearancePage(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            HintText("动感波光是用 Compose 画的随音量向外扩散的波纹，从封面中心向外延伸并跟随唱片左右位置；不依赖 Web 内核，老电视和投影仪也能跑。")
+            HintText("动感波光是用 Compose 画的随音量向外扩散的波纹；鲸鱼特效复刻网易云「鲸云音效」，是从封面中心向外辐射、随距离淡出的三角形粒子。两者均从封面中心向外延伸并跟随唱片左右位置，不依赖 Web 内核，老电视和投影仪也能跑。")
         }
 
         Section("歌单列数") {

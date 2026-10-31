@@ -15,6 +15,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.Arrangement
@@ -65,6 +66,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.CompositingStrategy
@@ -93,6 +95,7 @@ import com.baogemusic.tv.data.model.Track
 import com.baogemusic.tv.data.store.LyricAlignment
 import com.baogemusic.tv.data.store.PlayerFx
 import com.baogemusic.tv.data.store.PlayerLayout
+import com.baogemusic.tv.data.store.PlayerUi
 import com.baogemusic.tv.playback.LyricParser
 import com.baogemusic.tv.playback.RepeatMode
 import com.baogemusic.tv.ui.appContainer
@@ -105,6 +108,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.math.PI
 import kotlin.math.roundToInt
 
 @Composable
@@ -191,127 +195,166 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
       return@Box
     }
 
-    // 网易云同款：左侧大封面、右侧歌名 + 歌词。封面背后的动感波光从封面中心向外扩散，
-    // 并跟随唱片在左 / 在右的位置（波纹 Canvas 包在封面容器里，容器随布局左右移动）。
+    // 播放界面整体风格：复刻网易（左封面 + 右歌词，直接铺在模糊背景上）或 BetterLyrics
+    // （模糊专辑铺满全屏，居中一张半透明冷色玻璃卡片承载「左封面 + 右双语歌词」，标题 / 歌手移到封面下方）。
+    val ui = settings.playerUi
     val lyricStatus by controller.lyricStatus.collectAsState()
     val activeSp = settings.lyricFontSizeSp
     val lineFactor = com.baogemusic.tv.data.store.LyricScaleRange.lineFactorOf(settings.lyricLineScale)
-    // 网易云歌词沿用用户在设置里选的对齐方式（默认左对齐）。
+    // 歌词沿用用户在设置里选的对齐方式（默认左对齐）。
     val effectiveAlign = settings.lyricAlignment
     val coverOnLeft = settings.playerLayout == PlayerLayout.LYRIC_RIGHT
 
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 32.dp)) {
-      // 主体：左侧封面 + 右侧歌词，占满中间区域；底部保留波形与播放控件。
-      Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+    // 歌名 + 平台标签 + 歌手 + 专辑 + 调试信息。BetterLyrics 模式下移到封面下方，故抽成可复用块。
+    val trackMeta: @Composable () -> Unit = {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Text(
+          track.name,
+          color = AppColors.TextPrimary,
+          fontSize = 24.sp,
+          fontWeight = FontWeight.Bold,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          modifier = Modifier.weight(1f),
+        )
+      }
+      Spacer(Modifier.height(8.dp))
+      Text(
+        track.singer,
+        color = AppColors.TextSecondary,
+        fontSize = 15.sp,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+      )
+      track.albumName?.takeIf { it.isNotBlank() }?.let { album ->
+        Spacer(Modifier.height(4.dp))
+        Text(
+          "专辑：$album",
+          color = AppColors.TextMuted,
+          fontSize = 13.sp,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+        )
+      }
+      // 播放调试信息（设置里开启）：获取地址 / 失败自动跳过 / 换源降级，排查音源问题用。
+      val status = state.error ?: (if (state.resolving) "正在获取播放地址…" else state.warning)
+      if (settings.showDebugInfo && status != null) {
+        Spacer(Modifier.height(6.dp))
+        Text(
+          status,
+          color = if (state.error != null) AppColors.Danger else AppColors.Warning,
+          fontSize = 12.sp,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+        )
+      }
+    }
+
+    // 封面容器（含动感波光，波纹中心 = 封面中心，并随方向左右移动）。scale 控制整体大小，
+    // BetterLyrics 模式稍微缩小，给封面下方的标题 / 歌手留位置。
+    val coverContainer: @Composable (Modifier, Float) -> Unit = { m, scale ->
+      Box(modifier = m.size(screenHeight * scale), contentAlignment = Alignment.Center) {
+        if (settings.playerFx != PlayerFx.OFF) {
+          PlayerBackdrop(
+            fx = settings.playerFx,
+            isPlaying = state.isPlaying,
+            level = audioLevel,
+            glow = vinylPalette(settings.vinylColor).glow,
+            modifier = Modifier.fillMaxSize(),
+          )
+        }
+        Box(modifier = Modifier.size(screenHeight * (scale * 0.72f)), contentAlignment = Alignment.Center) {
+          PlayerDisc(
+            picURL = track.picURL,
+            isPlaying = state.isPlaying,
+            palette = vinylPalette(settings.vinylColor),
+            shape = settings.discShape,
+            modifier = Modifier.fillMaxSize(),
+          )
+        }
+      }
+    }
+
+    // 右栏歌词面板；BetterLyrics 模式下标题信息已移到封面下方，故 showMeta=false 只放歌词。
+    val lyricPanel: @Composable (Modifier, Boolean) -> Unit = { m, showMeta ->
+      Column(modifier = m.fillMaxHeight()) {
+        if (showMeta) {
+          trackMeta()
+          Spacer(Modifier.height(20.dp))
+        }
+        // 歌词区：填满剩余高度
+        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+          LyricPane(
+            lyrics,
+            state.positionMs,
+            lyricFontSizeSp = activeSp,
+            lyricAlignment = effectiveAlign,
+            lineFactor = lineFactor,
+            showTranslation = settings.showLyricTranslation,
+            singleLine = false,
+            failureHint = (lyricStatus as? com.baogemusic.tv.playback.LyricStatus.Failed)?.message,
+            loading = lyricStatus is com.baogemusic.tv.playback.LyricStatus.Loading,
+            onRetry = { controller.retryLyrics() },
+            modifier = Modifier.fillMaxSize(),
+          )
+        }
+      }
+    }
+
+    // 整个「左封面 + 右歌词」舞台，自适应填满传入的 modifier。
+    val stage: @Composable (Modifier) -> Unit = { m ->
+      Box(modifier = m.fillMaxSize()) {
         Row(
           modifier = Modifier.fillMaxSize(),
           verticalAlignment = Alignment.CenterVertically,
         ) {
-          // 左侧 / 右侧的封面容器（含动感波光，波纹中心 = 封面中心，并随方向左右移动）。
-          val coverContainer = @Composable { m: Modifier ->
-            Box(modifier = m.size(screenHeight * 0.72f), contentAlignment = Alignment.Center) {
-              if (settings.playerFx == PlayerFx.WAVE) {
-                PlayerBackdrop(
-                  fx = PlayerFx.WAVE,
-                  isPlaying = state.isPlaying,
-                  level = audioLevel,
-                  glow = vinylPalette(settings.vinylColor).glow,
-                  modifier = Modifier.fillMaxSize(),
-                )
-              }
-              Box(modifier = Modifier.size(screenHeight * 0.52f), contentAlignment = Alignment.Center) {
-                PlayerDisc(
-                  picURL = track.picURL,
-                  isPlaying = state.isPlaying,
-                  palette = vinylPalette(settings.vinylColor),
-                  shape = settings.discShape,
-                  modifier = Modifier.fillMaxSize(),
-                )
-              }
-            }
-          }
-          val lyricPanel: @Composable (Modifier) -> Unit = { m ->
-            Column(modifier = m.fillMaxHeight()) {
-              // 歌名 + 平台小标签（网易云同款：标题粗体，右侧一个灰色小标签）
-              Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-              ) {
-                Text(
-                  track.name,
-                  color = AppColors.TextPrimary,
-                  fontSize = 24.sp,
-                  fontWeight = FontWeight.Bold,
-                  maxLines = 1,
-                  overflow = TextOverflow.Ellipsis,
-                  modifier = Modifier.weight(1f),
-                )
-                Spacer(Modifier.width(10.dp))
-                TvPill(
-                  onClick = { },
-                  selected = true,
-                  contentPadding = PaddingValues(horizontal = 12.dp, vertical = 5.dp),
-                ) { Text(track.source.displayName, fontSize = 12.sp) }
-              }
-              Spacer(Modifier.height(8.dp))
-              Text(
-                track.singer,
-                color = AppColors.TextSecondary,
-                fontSize = 15.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-              )
-              track.albumName?.takeIf { it.isNotBlank() }?.let { album ->
-                Spacer(Modifier.height(4.dp))
-                Text(
-                  "专辑：$album",
-                  color = AppColors.TextMuted,
-                  fontSize = 13.sp,
-                  maxLines = 1,
-                  overflow = TextOverflow.Ellipsis,
-                )
-              }
-              // 播放调试信息（设置里开启）：获取地址 / 失败自动跳过 / 换源降级，排查音源问题用。
-              val status = state.error ?: (if (state.resolving) "正在获取播放地址…" else state.warning)
-              if (settings.showDebugInfo && status != null) {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                  status,
-                  color = if (state.error != null) AppColors.Danger else AppColors.Warning,
-                  fontSize = 12.sp,
-                  maxLines = 1,
-                  overflow = TextOverflow.Ellipsis,
-                )
-              }
-              Spacer(Modifier.height(20.dp))
-              // 歌词区：填满剩余高度
-              Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                LyricPane(
-                  lyrics,
-                  state.positionMs,
-                  lyricFontSizeSp = activeSp,
-                  lyricAlignment = effectiveAlign,
-                  lineFactor = lineFactor,
-                  showTranslation = settings.showLyricTranslation,
-                  singleLine = false,
-                  failureHint = (lyricStatus as? com.baogemusic.tv.playback.LyricStatus.Failed)?.message,
-                  loading = lyricStatus is com.baogemusic.tv.playback.LyricStatus.Loading,
-                  onRetry = { controller.retryLyrics() },
-                  modifier = Modifier.fillMaxSize(),
-                )
-              }
-            }
-          }
-
           if (coverOnLeft) {
-            coverContainer(Modifier)
+            if (ui == PlayerUi.BETTERLYRICS) {
+              Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                coverContainer(Modifier, 0.60f * settings.coverScale)
+                Spacer(Modifier.height(18.dp))
+                trackMeta()
+              }
+            } else {
+              coverContainer(Modifier, 0.72f * settings.coverScale)
+            }
             Spacer(Modifier.width(40.dp))
-            lyricPanel(Modifier.weight(1f))
+            lyricPanel(Modifier.weight(1f), ui == PlayerUi.NETEASE)
           } else {
-            lyricPanel(Modifier.weight(1f))
+            lyricPanel(Modifier.weight(1f), ui == PlayerUi.NETEASE)
             Spacer(Modifier.width(40.dp))
-            coverContainer(Modifier)
+            if (ui == PlayerUi.BETTERLYRICS) {
+              Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                coverContainer(Modifier, 0.60f * settings.coverScale)
+                Spacer(Modifier.height(18.dp))
+                trackMeta()
+              }
+            } else {
+              coverContainer(Modifier, 0.72f * settings.coverScale)
+            }
           }
+        }
+      }
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 32.dp)) {
+      // 主体：复刻网易 / BetterLyrics 舞台，占满中间区域；底部保留波形与播放控件。
+      when (ui) {
+        PlayerUi.NETEASE -> Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+          stage(Modifier.fillMaxSize())
+        }
+        PlayerUi.BETTERLYRICS -> Box(
+          modifier = Modifier.fillMaxWidth().weight(1f),
+          contentAlignment = Alignment.Center,
+        ) {
+          BetterLyricsCard(
+            modifier = Modifier
+              .fillMaxWidth(0.98f)
+              .fillMaxHeight(0.9f),
+          ) { stage(Modifier.fillMaxSize()) }
         }
       }
 
@@ -1411,6 +1454,10 @@ private fun PlayerBackdrop(
   modifier: Modifier = Modifier,
 ) {
   if (fx == PlayerFx.OFF) return
+  if (fx == PlayerFx.WHALE) {
+    WhaleBackdrop(isPlaying = isPlaying, level = level, glow = glow, modifier = modifier)
+    return
+  }
   val transition = rememberInfiniteTransition(label = "playerFx")
   val t by transition.animateFloat(
     initialValue = 0f,
@@ -1462,6 +1509,75 @@ private fun PlayerBackdrop(
   }
 }
 
+/**
+ * 鲸鱼特效（复刻网易云「鲸云音效」，取自 https://github.com/tyhjh/JinyunEffect）：从封面中心向外辐射的
+ * 三角形粒子，随距离逐渐淡出，中心仍有呼吸光。波纹 / 粒子中心 = 专辑中心（Canvas 包在封面容器里），
+ * 因此天然从封面中心向外延伸，并随唱片在左 / 在右一起移动。纯 Compose Canvas 绘制，不依赖 Web 内核。
+ */
+@Composable
+private fun WhaleBackdrop(
+  isPlaying: Boolean,
+  level: Float,
+  glow: Color,
+  modifier: Modifier = Modifier,
+) {
+  val transition = rememberInfiniteTransition(label = "whaleFx")
+  val t by transition.animateFloat(
+    initialValue = 0f,
+    targetValue = 1f,
+    animationSpec = infiniteRepeatable(
+      animation = tween(durationMillis = 3_000, easing = LinearEasing),
+    ),
+    label = "whaleTime",
+  )
+  val smooth by animateFloatAsState(
+    targetValue = if (isPlaying) level.coerceIn(0f, 1f) else 0f,
+    animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+    label = "whaleLevel",
+  )
+  androidx.compose.foundation.Canvas(
+    modifier = modifier
+      .fillMaxSize()
+      .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen },
+  ) {
+    val cx = size.width / 2f
+    val cy = size.height / 2f
+    val base = size.minDimension
+    val center = Offset(cx, cy)
+    val maxR = base * 0.46f
+    val triSize = base * 0.045f
+    val count = 18
+    for (i in 0 until count) {
+      val angle = (i.toFloat() / count) * 2f * PI.toFloat()
+      val phase = i.toFloat() / count
+      val p = (t + phase) % 1f
+      val r = maxR * p * (1f + smooth * 0.15f)
+      val alpha = ((1f - p) * (0.45f + smooth * 0.45f)).coerceIn(0f, 1f)
+      val px = cx + cos(angle) * r
+      val py = cy + sin(angle) * r
+      val dir = Offset(cos(angle), sin(angle))
+      val perp = Offset(-sin(angle), cos(angle))
+      val tip = Offset(px, py) + dir * triSize
+      val b1 = Offset(px, py) + perp * triSize * 0.6f
+      val b2 = Offset(px, py) - perp * triSize * 0.6f
+      val path = Path().apply { moveTo(tip.x, tip.y); lineTo(b1.x, b1.y); lineTo(b2.x, b2.y); close() }
+      drawPath(path, color = glow.copy(alpha = alpha), blendMode = BlendMode.Screen)
+    }
+    // 中心呼吸光
+    val rg = base * (0.18f + smooth * 0.10f)
+    drawCircle(
+      brush = Brush.radialGradient(
+        colors = listOf(glow.copy(alpha = 0.22f + smooth * 0.18f), Color.Transparent),
+        center = center,
+        radius = rg,
+      ),
+      radius = rg,
+      center = center,
+      blendMode = BlendMode.Screen,
+    )
+  }
+}
+
 // ============== Cover backdrop =================================================================
 
 @Composable
@@ -1497,5 +1613,33 @@ private fun CoverBackdrop(picURL: String?) {
         ),
       )
     }
+  }
+}
+
+/**
+ * BetterLyrics 标准界面的标志性「玻璃卡片」：模糊专辑铺满全屏作背景，正中一张半透明、偏冷色的
+ * 圆角卡片承载「左封面 + 右双语歌词」。卡片本身只做容器（裁剪 + 背景 + 描边 + 内边距），
+ * 内部内容由调用方传入（即 [PlayerScreen] 里的两栏舞台）。
+ */
+@Composable
+private fun BetterLyricsCard(
+  modifier: Modifier = Modifier,
+  content: @Composable () -> Unit,
+) {
+  Box(
+    modifier = modifier
+      .clip(RoundedCornerShape(28.dp))
+      .background(
+        Brush.verticalGradient(
+          listOf(
+            Color(0xFF26405A).copy(alpha = 0.60f),
+            Color(0xFF0E1A28).copy(alpha = 0.66f),
+          ),
+        ),
+      )
+      .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(28.dp))
+      .padding(40.dp),
+  ) {
+    content()
   }
 }

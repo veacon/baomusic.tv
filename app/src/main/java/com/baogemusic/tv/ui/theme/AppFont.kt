@@ -34,6 +34,7 @@ fun rememberAppFontFamily(): FontFamily? {
     return when (settings.appFontFamily) {
         AppFontFamily.SYSTEM -> null
         AppFontFamily.PINGFANG_HK -> FontFamily(Font(R.font.pingfang_hk))
+        AppFontFamily.XIAODOU -> FontFamily(Font(R.font.xiaodou_poetry))
         AppFontFamily.CUSTOM -> userTypeface?.let { FontFamily(it) }
     }
 }
@@ -52,3 +53,7 @@ fun rememberUserFontFamily(fontId: String?): FontFamily? {
 /** 内置苹方的 [FontFamily]（设置页预览用）。 */
 @Composable
 fun pingFangFontFamily(): FontFamily = FontFamily(Font(R.font.pingfang_hk))
+
+/** 内置「小抖动侠情书」的 [FontFamily]（设置页预览用）。 */
+@Composable
+fun xiaodouFontFamily(): FontFamily = FontFamily(Font(R.font.xiaodou_poetry))
