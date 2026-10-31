@@ -70,6 +70,13 @@ class LyricsFetcher(
             builtIn.fetch(alt)?.let { return finish(track, it, src, tried.toList()) }
             tryScript(alt)?.let { return finish(track, it, src, tried.toList()) }
         }
+
+        // 4) 最后兜底：不依赖「换源匹配」，直接按「歌名 + 歌手」跨平台搜同名歌词
+        //    （酷狗 → 网易云 → QQ）。很多「正常歌却显示没歌词」都是卡在这一步之前。
+        runCatching { builtIn.searchByName(track) }.getOrNull()
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { return finish(track, it, null, tried.toList()) }
+
         return LyricResult(emptyList(), null, tried.toList())
     }
 

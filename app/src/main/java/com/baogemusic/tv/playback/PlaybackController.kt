@@ -13,6 +13,7 @@ import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
@@ -193,10 +194,13 @@ class PlaybackController(
             levelProcessor: AudioLevelProcessor,
             softwareOnly: () -> Boolean,
         ): ExoPlayer {
+            // Android 8 / 9 的老电视（XGIMI、MStar 等）音频通路比较脆：
+            // 缓冲减半、关掉 float 输出（退回 16bit PCM），尽量走最普通的 AudioTrack 路径。
+            val legacyAudio = android.os.Build.VERSION.SDK_INT < 29
             val loadControl = DefaultLoadControl.Builder()
                 .setBufferDurationsMs(
-                    /* minBufferMs = */ 30_000,
-                    /* maxBufferMs = */ 60_000,
+                    /* minBufferMs = */ if (legacyAudio) 20_000 else 30_000,
+                    /* maxBufferMs = */ if (legacyAudio) 40_000 else 60_000,
                     /* bufferForPlaybackMs = */ 3_000,
                     /* bufferForPlaybackAfterRebufferMs = */ 5_000,
                 )
@@ -232,12 +236,24 @@ class PlaybackController(
                 .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
                 .setMediaCodecSelector { mimeType, secure, tunneling ->
                     val all = MediaCodecSelector.DEFAULT.getDecoderInfos(mimeType, secure, tunneling)
-                    // 只管音频；MV 视频仍走硬解，软解 1080p 在盒子上会卡。没有可用的软件解码器时退回
-                    // 全部，宁可走硬解也别直接放不了。
-                    if (!softwareOnly() || !androidx.media3.common.MimeTypes.isAudio(mimeType)) all
-                    else all.filter { it.softwareOnly }.ifEmpty { all }
+                    // 只管音频；MV 视频仍走硬解，软解 1080p 在盒子上会卡。
+                    if (!softwareOnly() || !androidx.media3.common.MimeTypes.isAudio(mimeType)) {
+                        all
+                    } else {
+                        // 部分厂商（XGIMI / MStar 等）的解码器会把自己标成 software，实际仍在
+                        // OMX 组件里跑，喂某些 MP3 时在 native 层直接崩溃。所以先只认 AOSP 的
+                        // c2.android.* / OMX.google.*，没有再退到 softwareOnly，最后才退回全部。
+                        val aosp = all.filter { info ->
+                            val n = info.name.lowercase()
+                            n.contains("google") || n.contains("c2.android") || n.contains("android")
+                        }
+                        when {
+                            aosp.isNotEmpty() -> aosp
+                            else -> all.filter { it.softwareOnly }.ifEmpty { all }
+                        }
+                    }
                 }
-                .setEnableAudioFloatOutput(true)
+                .setEnableAudioFloatOutput(!legacyAudio)
                 .setEnableAudioTrackPlaybackParams(true)
 
             val audioAttrs = AudioAttributes.Builder()
@@ -297,6 +313,40 @@ class PlaybackController(
     private var resolveJob: Job? = null
 
     init {
+        // 解码链路的细粒度轨迹：定位「prepared 之后、ready 之前」的闪退到底死在
+        // MediaCodec 创建 / 格式切换，还是 AudioTrack 起不来（AudioSink）。
+        // 这些回调都在播放线程上，只写一行文件，开销可忽略。
+        player.addAnalyticsListener(object : AnalyticsListener {
+            override fun onAudioInputFormatChanged(
+                eventTime: AnalyticsListener.EventTime,
+                format: androidx.media3.common.Format,
+                decoderReuseEvaluation: androidx.media3.exoplayer.DecoderReuseEvaluation?,
+            ) {
+                DebugReport.breadcrumb(
+                    appContext,
+                    "audioFormat ${format.sampleMimeType} ${format.sampleRate}Hz ch=${format.channelCount} pcm=${format.pcmEncoding}",
+                )
+            }
+
+            override fun onAudioDecoderInitialized(
+                eventTime: AnalyticsListener.EventTime,
+                decoderName: String,
+                initializedTimestampMs: Long,
+                initializationDurationMs: Long,
+            ) {
+                DebugReport.breadcrumb(appContext, "audioDecoder=$decoderName init=${initializationDurationMs}ms")
+            }
+
+            override fun onAudioUnderrun(
+                eventTime: AnalyticsListener.EventTime,
+                bufferSize: Int,
+                bufferSizeMs: Long,
+                elapsedSinceLastFeedMs: Long,
+            ) {
+                DebugReport.breadcrumb(appContext, "audioUnderrun buf=${bufferSize}ms=${bufferSizeMs}")
+            }
+        })
+
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _state.value = _state.value.copy(isPlaying = isPlaying)

@@ -146,11 +146,32 @@ object DebugReport {
     }
 
     private fun readLogcat(): String {
-        val proc = ProcessBuilder("logcat", "-d", "-v", "threadtime", "-t", "1500")
+        // crash 缓冲区里有 native 崩溃（signal 11 / abort）的 tombstone 摘要与调用栈，
+        // 这是排「一按播放就闪退」最关键的信息，先读它。
+        val crashBuf = runCatching {
+            readLogcatBuffer("-b", "crash", "-d", "-v", "threadtime", "-t", "300")
+        }.getOrDefault("")
+        val mainBuf = runCatching {
+            readLogcatBuffer("-d", "-v", "threadtime", "-t", "1200")
+        }.getOrDefault("")
+        return buildString {
+            if (crashBuf.isNotBlank()) {
+                appendLine("[crash 缓冲区]")
+                appendLine(crashBuf)
+            }
+            if (mainBuf.isNotBlank()) {
+                appendLine("[main 缓冲区]")
+                appendLine(mainBuf)
+            }
+        }.ifBlank { "（无输出）" }
+    }
+
+    private fun readLogcatBuffer(vararg args: String): String {
+        val proc = ProcessBuilder("logcat", *args)
             .redirectErrorStream(true)
             .start()
         val out = proc.inputStream.bufferedReader().use { it.readText() }
         runCatching { proc.waitFor(3, TimeUnit.SECONDS) }
-        return out.takeIf { it.isNotBlank() } ?: "（无输出）"
+        return out
     }
 }

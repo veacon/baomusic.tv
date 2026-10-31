@@ -94,12 +94,24 @@
 - **新增崩溃前的操作轨迹（breadcrumbs）**：`playAt` / `prepare` / `ready` / `playerError` 各写一行到 `filesDir/debug/breadcrumbs.txt`，并纳入调试报告。
   - 原生崩溃（SIGSEGV、解码器 abort）抓不到 Java 堆栈，但轨迹能看出死在「解析地址 → 准备 → 解码」的哪一步。
 
-## 十一、构建产物
+## 十一、默认源 / 歌词兜底 / 字体替换 / 老设备音频加固
+- **排行榜、歌单默认音源改为网易云**（原为酷我）。
+- **歌词新增跨平台兜底**：原有链路是「同平台直连 → 按设置顺序换源（依赖同名曲目匹配）」，命中率低。现在再加一层「不看曲目来自哪个平台，直接用歌名 + 歌手去搜同名歌词」，顺序为 **酷狗 → 网易云 → QQ**（酷狗歌词库覆盖最广，且搜索接口不要求 hash）。
+  - 实测各家接口：酷狗 search/download、网易云 search/lyric、QQ client_search_cp/fcg_query_lyric 均可用；酷我 `newh5/singles/songinfoandlrc` 对部分 id 返回 301「音乐查询失败」，所以不再作为首选兜底。
+- **内置字体替换**：下线「苹方-港」（`pingfang_hk.otf`，12.3MB），换成「Aa祝你我明媚向春天」（`aa_ming_mei_spring.ttf`，14.4MB）。枚举值 `PINGFANG_HK` 用 `@SerialName` 保留，老存档选择过苹方的会自动落到新字体，不会重置设置。
+- **老设备（API < 29）音频加固**：
+  - 关闭 float 输出（退回 16bit PCM），缓冲从 30s/60s 降到 20s/40s。
+  - 软解时**只认 AOSP 解码器**（`c2.android.*` / `OMX.google.*`）——部分厂商解码器自称 software，实际仍在 OMX 里跑，喂某些 MP3 会在 native 层崩溃。
+  - 解码失败（`DECODER_INIT_FAILED` / `DECODING_FAILED` / `AUDIO_TRACK_INIT_FAILED`）自动切软解并重试一次。
+- **新增 `logcat -b crash` 采集**：调试报告现在会带上 native 崩溃缓冲区（tombstone 摘要 + 调用栈），这是排查「无 Java 堆栈闪退」的关键。
+- **封面模糊加固**：`BlurTransformation` 复用同一个 RenderScript 上下文（原来每张封面新建一个，native 内存容易耗光），输入封顶 720px，且失败时退回未模糊图而不是抛异常。
+
+## 十二、构建产物
 - `app/build/outputs/apk/release/baoge-tv-1.4.7-arm64-v8a-release.apk`（约 29MB，仅 arm64-v8a；内置「小抖动侠情书」字体约占 3.5MB）。
 - 使用 debug 签名（仓库无 keystore）；如需正式签名，放入 `keystore.properties` + `release.keystore` 后重新构建。
 - **由于设置字段有破坏性变更，首次启动会恢复默认偏好**，需要重新调一次歌词字号 / 对齐等；升级后上述「默认值调整」会按新默认生效。
 
-## 十二、GitHub 上传前注意事项
+## 十三、GitHub 上传前注意事项
 1. `UpdateManager.kt` 的 `OWNER` / `REPO` 改为你自己的 GitHub 仓库（否则应用内更新会去拉原项目）。
 2. 不要提交 `local.properties`、`*.keystore`、`build/` 目录（已在 `.gitignore` 内）。
 3. 上传的 Release APK 命名保持 `baoge-tv-<版本>-arm64-v8a-release.apk`，应用内更新器按 `-<abi>-` 自动匹配。

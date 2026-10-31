@@ -78,7 +78,7 @@ import com.baogemusic.tv.ui.components.TvPill
 import com.baogemusic.tv.ui.components.TvSwitchRow
 import com.baogemusic.tv.ui.components.TvTextFieldHost
 import com.baogemusic.tv.ui.theme.AppColors
-import com.baogemusic.tv.ui.theme.pingFangFontFamily
+import com.baogemusic.tv.ui.theme.mingMeiFontFamily
 import com.baogemusic.tv.ui.theme.xiaodouFontFamily
 import com.baogemusic.tv.ui.theme.rememberAppFontFamily
 import com.baogemusic.tv.ui.theme.rememberUserFontFamily
@@ -222,10 +222,10 @@ internal fun LyricPage(
                     modifier = Modifier.focusRequester(firstFocus),
                 ) { Text(AppFontFamily.SYSTEM.label, fontSize = 13.sp) }
                 TvPill(
-                    onClick = { onUpdate { it.copy(appFontFamily = AppFontFamily.PINGFANG_HK, customFontId = null) } },
-                    selected = settings.appFontFamily == AppFontFamily.PINGFANG_HK,
+                    onClick = { onUpdate { it.copy(appFontFamily = AppFontFamily.MINGMEI, customFontId = null) } },
+                    selected = settings.appFontFamily == AppFontFamily.MINGMEI,
                 ) {
-                    Text(AppFontFamily.PINGFANG_HK.label, fontSize = 13.sp, fontFamily = pingFangFontFamily())
+                    Text(AppFontFamily.MINGMEI.label, fontSize = 13.sp, fontFamily = mingMeiFontFamily())
                 }
                 TvPill(
                     onClick = { onUpdate { it.copy(appFontFamily = AppFontFamily.XIAODOU, customFontId = null) } },

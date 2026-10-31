@@ -6,6 +6,7 @@ import com.baogemusic.tv.data.model.Track
 import com.baogemusic.tv.playback.LyricLine
 import com.baogemusic.tv.playback.LyricParser
 import com.baogemusic.tv.source.catalog.CatalogHttp
+import com.baogemusic.tv.source.catalog.urlEncode
 import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
 
@@ -43,6 +44,74 @@ class BuiltInLyricResolver(private val http: CatalogHttp) {
         if (!lines.isNullOrEmpty()) cache[key] = lines
         return lines
     }
+
+    // MARK: - 跨平台按名字兜底
+
+    /**
+     * 兜底：不看曲目来自哪个平台，直接拿「歌名 + 歌手」去各大平台搜同名曲目再取歌词。
+     *
+     * 很多歌没歌词并不是真的没有，而是「同平台 songmid 对不上」或「换源匹配失败」——
+     * 比如酷我的 lyric 接口对部分 id 直接返回 301、QQ 源的 songmid 在某些曲目上是试听 id。
+     * 这里按命中率排序依次尝试：酷狗（只要有歌名+时长就能搜到）→ 网易云 → QQ。
+     */
+    suspend fun searchByName(track: Track): List<LyricLine>? {
+        val durationMs = (track.duration ?: 0) * 1000
+        // 1) 酷狗：歌词库覆盖最广，搜索接口不要求 hash
+        runCatching { kugou(track.name, "", durationMs) }.getOrNull()?.let { return it }
+        // 2) 网易云：搜索同名曲目 → 取 id → 取歌词
+        runCatching { neteaseBySearch(track) }.getOrNull()?.let { return it }
+        // 3) QQ：搜索同名曲目 → 取 songmid → 取歌词
+        runCatching { qqBySearch(track) }.getOrNull()?.let { return it }
+        return null
+    }
+
+    private suspend fun neteaseBySearch(track: Track): List<LyricLine>? {
+        val body = "s=${urlEncode(track.searchKeyword())}&type=1&limit=5"
+        val json = runCatching {
+            JSONObject(
+                http.postForm(
+                    "https://music.163.com/api/search/get",
+                    body,
+                    mapOf("Referer" to "https://music.163.com/"),
+                ),
+            )
+        }.getOrNull() ?: return null
+        val songs = json.optJSONObject("result")?.optJSONArray("songs") ?: return null
+        for (i in 0 until minOf(4, songs.length())) {
+            val s = songs.optJSONObject(i) ?: continue
+            if (!nameMatches(s.optString("name"), track.name)) continue
+            val id = s.opt("id")?.toString()?.takeIf { it.isNotBlank() } ?: continue
+            netease(id)?.let { return it }
+        }
+        return null
+    }
+
+    private suspend fun qqBySearch(track: Track): List<LyricLine>? {
+        val w = java.net.URLEncoder.encode(track.searchKeyword(), "UTF-8")
+        val url = "https://c.y.qq.com/soso/fcgi-bin/client_search_cp?p=1&n=5&w=$w&format=json"
+        val json = json(url, ua + mapOf("Referer" to "https://y.qq.com/")) ?: return null
+        val list = json.optJSONObject("data")?.optJSONObject("song")?.optJSONArray("list") ?: return null
+        for (i in 0 until minOf(4, list.length())) {
+            val s = list.optJSONObject(i) ?: continue
+            if (!nameMatches(s.optString("songname"), track.name)) continue
+            val mid = s.optString("songmid").takeIf { it.isNotBlank() } ?: continue
+            qq(mid)?.let { return it }
+        }
+        return null
+    }
+
+    private fun Track.searchKeyword(): String = "$name $singer".replace(Regex("\\s+"), " ").trim()
+
+    /** 歌名比对：去掉标点空格后互相包含即可（「晴天 (Live)」≈「晴天」）。 */
+    private fun nameMatches(candidate: String, target: String): Boolean {
+        val a = normalize(candidate)
+        val b = normalize(target)
+        if (a.isEmpty() || b.isEmpty()) return false
+        return a.contains(b) || b.contains(a)
+    }
+
+    private fun normalize(s: String): String =
+        s.replace(Regex("[\\s'.,，&\"、()（）`~\\-<>|/\\[\\]!！?？·]"), "").lowercase()
 
     // MARK: - 酷我
 
@@ -116,7 +185,10 @@ class BuiltInLyricResolver(private val http: CatalogHttp) {
             "User-Agent" to "KuGou2012-9020-ExpandSearchManager",
         )
         val nameEnc = java.net.URLEncoder.encode(name, "UTF-8").replace("+", "%20")
-        val searchUrl = "http://lyrics.kugou.com/search?ver=1&man=yes&client=pc&keyword=$nameEnc&hash=$hash&timelength=$durationMs&lrctxt=1"
+        // hash 为空时按「关键词 + 时长」搜（跨平台兜底就是这么用的）。
+        val hashParam = if (hash.isBlank()) "" else "&hash=$hash"
+        val searchUrl =
+            "http://lyrics.kugou.com/search?ver=1&man=yes&client=pc&keyword=$nameEnc$hashParam&timelength=$durationMs&lrctxt=1"
         val first = runCatching {
             json(searchUrl, headers)?.optJSONArray("candidates")?.optJSONObject(0)
         }.getOrNull() ?: return null

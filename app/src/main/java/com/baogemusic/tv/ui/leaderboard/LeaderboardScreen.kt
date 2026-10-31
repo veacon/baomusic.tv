@@ -40,7 +40,7 @@ private val boardSources = listOf(SourceID.WY, SourceID.TX, SourceID.KG, SourceI
 
 @Composable
 fun LeaderboardScreen(onOpenPlayer: () -> Unit, modifier: Modifier = Modifier) {
-    var source by remember { mutableStateOf(SourceID.KW) }
+    var source by remember { mutableStateOf(SourceID.WY) }
     var boards by remember { mutableStateOf<List<BoardInfo>>(emptyList()) }
     var selected by remember { mutableStateOf<BoardInfo?>(null) }
     var tracks by remember { mutableStateOf<List<Track>>(emptyList()) }

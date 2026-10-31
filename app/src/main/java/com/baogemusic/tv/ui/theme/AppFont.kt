@@ -33,7 +33,7 @@ fun rememberAppFontFamily(): FontFamily? {
     }
     return when (settings.appFontFamily) {
         AppFontFamily.SYSTEM -> null
-        AppFontFamily.PINGFANG_HK -> FontFamily(Font(R.font.pingfang_hk))
+        AppFontFamily.MINGMEI -> FontFamily(Font(R.font.aa_ming_mei_spring))
         AppFontFamily.XIAODOU -> FontFamily(Font(R.font.xiaodou_poetry))
         AppFontFamily.CUSTOM -> userTypeface?.let { FontFamily(it) }
     }
@@ -50,9 +50,9 @@ fun rememberUserFontFamily(fontId: String?): FontFamily? {
     return typeface?.let { FontFamily(it) }
 }
 
-/** 内置苹方的 [FontFamily]（设置页预览用）。 */
+/** 内置「Aa祝你我明媚向春天」的 [FontFamily]（设置页预览用）。 */
 @Composable
-fun pingFangFontFamily(): FontFamily = FontFamily(Font(R.font.pingfang_hk))
+fun mingMeiFontFamily(): FontFamily = FontFamily(Font(R.font.aa_ming_mei_spring))
 
 /** 内置「小抖动侠情书」的 [FontFamily]（设置页预览用）。 */
 @Composable

@@ -48,7 +48,7 @@ private val songlistSources = listOf(SourceID.WY, SourceID.TX, SourceID.KG, Sour
 fun SonglistScreen(onOpenPlayer: () -> Unit, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     val settings by appContainer.settingsStore.settings.collectAsState()
-    var source by remember { mutableStateOf(SourceID.KW) }
+    var source by remember { mutableStateOf(SourceID.WY) }
     // Seed with the default source's first order (not null): the sibling effect below re-writes
     // it with an *equal* value on first run, so mutableStateOf's structural equality skips the
     // invalidation — the list effect runs exactly once on entry instead of fetch → cancel →

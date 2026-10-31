@@ -40,7 +40,11 @@ class BlurTransformation(
     override suspend fun transform(input: Bitmap, size: Size): Bitmap {
         val srcW = input.width.toFloat()
         val srcH = input.height.toFloat()
-        val s = sampling.coerceAtLeast(1f)
+        // 目标短边封顶 720px：1.5GB 内存的老电视上，模糊只需要「一团色块」，
+        // 按原图尺寸糊一张 1080p 纯属浪费 native 内存（RenderScript 崩起来是直接 SIGSEGV）。
+        val cap = 720f
+        val sampleBySize = max(srcW, srcH) / cap
+        val s = max(sampling.coerceAtLeast(1f), sampleBySize.coerceAtLeast(1f))
         val dstW = max(1, (srcW / s).toInt())
         val dstH = max(1, (srcH / s).toInt())
 
@@ -52,25 +56,35 @@ class BlurTransformation(
         }
 
         // 2) Apply Gaussian via RenderScript.
-        var rs: RenderScript? = null
-        var inAlloc: Allocation? = null
-        var outAlloc: Allocation? = null
-        var script: ScriptIntrinsicBlur? = null
-        try {
-            rs = RenderScript.create(context)
-            inAlloc = Allocation.createFromBitmap(rs, scaled)
-            outAlloc = Allocation.createTyped(rs, inAlloc.type)
-            script = ScriptIntrinsicBlur.create(rs, Element.U8_4(rs))
-            script.setRadius(radius.coerceIn(0.1f, 25f))
-            script.setInput(inAlloc)
-            script.forEach(outAlloc)
-            outAlloc.copyTo(scaled)
-        } finally {
-            script?.destroy()
-            outAlloc?.destroy()
-            inAlloc?.destroy()
-            rs?.destroy()
+        // 复用同一个 RenderScript 上下文：每张封面都 new 一个既慢又容易把 native 内存耗光，
+        // 而 RenderScript 不是线程安全的，所以整段加锁串行化。
+        synchronized(RS_LOCK) {
+            var inAlloc: Allocation? = null
+            var outAlloc: Allocation? = null
+            var script: ScriptIntrinsicBlur? = null
+            try {
+                val rs = rsContext ?: RenderScript.create(context).also { rsContext = it }
+                inAlloc = Allocation.createFromBitmap(rs, scaled)
+                outAlloc = Allocation.createTyped(rs, inAlloc.type)
+                script = ScriptIntrinsicBlur.create(rs, Element.U8_4(rs))
+                script.setRadius(radius.coerceIn(0.1f, 25f))
+                script.setInput(inAlloc)
+                script.forEach(outAlloc)
+                outAlloc.copyTo(scaled)
+            } catch (t: Throwable) {
+                // 模糊失败就退回未模糊的降采样图，绝不让它把播放带崩。
+                return scaled
+            } finally {
+                script?.destroy()
+                outAlloc?.destroy()
+                inAlloc?.destroy()
+            }
         }
         return scaled
+    }
+
+    private companion object {
+        private val RS_LOCK = Any()
+        @Volatile private var rsContext: RenderScript? = null
     }
 }

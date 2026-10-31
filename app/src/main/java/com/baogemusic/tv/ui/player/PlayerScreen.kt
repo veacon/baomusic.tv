@@ -1804,8 +1804,6 @@ private fun FullscreenLyricStage(
       FullscreenLyricFx.STARSEA -> StarField(Modifier.fillMaxSize())
       FullscreenLyricFx.CINEMA -> CinemaBackdrop(
         photoUrl = artistPhoto ?: coverPic,
-        // 写真没取到时，模糊封面比纯黑更像「电影感」。
-        blurWhenPhoto = artistPhoto == null,
         modifier = Modifier.fillMaxSize(),
       )
       else -> {
@@ -2028,13 +2026,13 @@ private fun StarField(modifier: Modifier = Modifier) {
  * 胶片：歌手写真（网易云艺人宣传照）做背景，配合缓慢推近的「肯·伯恩斯」镜头 + 上下电影黑边 +
  * 细颗粒 + 纵向暗角，歌词走底部字幕。
  *
- * [photoUrl] 是写真地址；没取到写真时调用方会退一步传模糊封面并置 [blurWhenPhoto]，
+ * [photoUrl] 是写真地址；没取到写真时调用方会退一步传专辑封面。刻意**不做模糊**——
+ * 播放页根层已经有一层模糊封面了，再模糊一张大图在 1.5GB 内存的盒子上纯属浪费。
  * 两者都没有就落到纯黑底，保证任何情况下都能播放。
  */
 @Composable
 private fun CinemaBackdrop(
   photoUrl: String?,
-  blurWhenPhoto: Boolean,
   modifier: Modifier = Modifier,
 ) {
   val transition = rememberInfiniteTransition(label = "cinemaFx")
@@ -2066,13 +2064,7 @@ private fun CinemaBackdrop(
       coil.compose.AsyncImage(
         model = coil.request.ImageRequest.Builder(context)
           .data(photoUrl)
-          .apply {
-            if (blurWhenPhoto) {
-              transformations(
-                com.baogemusic.tv.ui.components.BlurTransformation(context, radius = 25f, sampling = 2f),
-              )
-            }
-          }
+          .size(1280, 720)
           .crossfade(700)
           .build(),
         contentDescription = null,

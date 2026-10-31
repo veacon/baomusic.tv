@@ -55,13 +55,14 @@ object LyricFont {
     fun step(value: Int, delta: Int): Int = clamp(value + delta)
 }
 
-/** 全局字体（整个 App 的文字都用它，不只是歌词）。SYSTEM 用系统默认（思源/Noto 一类），
- *  PINGFANG_HK 是随包内置的苹方（res/font），CUSTOM 用用户导入的字体
- *  （见 [com.baogemusic.tv.data.store.FontStore]）。 */
+/** 歌词字体（只作用于歌词）。SYSTEM 用系统默认（思源/Noto 一类），
+ *  MINGMEI 是随包内置的「Aa祝你我明媚向春天」（res/font），CUSTOM 用用户导入的字体
+ *  （见 [com.baogemusic.tv.data.store.FontStore]）。
+ *  注：MINGMEI 保留了旧的序列化名 `PINGFANG_HK`（苹方已按需求下线，老存档自动落到这个字体）。 */
 @Serializable
 enum class AppFontFamily(val label: String) {
     SYSTEM("系统默认"),
-    PINGFANG_HK("苹方-港"),
+    @SerialName("PINGFANG_HK") MINGMEI("明媚向春天"),
     XIAODOU("小抖动侠情书"),
     CUSTOM("自定义字体"),
 }
