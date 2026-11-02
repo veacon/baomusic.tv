@@ -572,8 +572,22 @@ private fun importFromUrl(scope: kotlinx.coroutines.CoroutineScope, url: String,
     scope.launch {
         onStatus("正在导入…")
         val result = runCatching {
-            val raw = appContainer.fetchText(url.trim())
-            appContainer.scriptStore.import(raw).getOrThrow()
+            // 一条链接展开成「直连 → jsDelivr → 各前缀代理」依次尝试，大陆直连不通时自动落到镜像。
+            val candidates = com.baogemusic.tv.net.GithubMirrors.candidates(url)
+            var lastError: Throwable? = null
+            var raw: String? = null
+            for ((idx, u) in candidates.withIndex()) {
+                onStatus("正在导入…（${idx + 1}/${candidates.size}）")
+                val attempt = runCatching { appContainer.fetchText(u) }
+                val text = attempt.getOrNull()
+                if (text != null && text.isNotBlank()) {
+                    raw = text
+                    break
+                }
+                lastError = attempt.exceptionOrNull()
+            }
+            val text = raw ?: throw lastError ?: IllegalStateException("没有可用的下载地址")
+            appContainer.scriptStore.import(text).getOrThrow()
         }
         onStatus(result.fold({ it.message }, { "导入失败：${it.message}" }))
     }

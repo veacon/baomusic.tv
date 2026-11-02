@@ -113,6 +113,17 @@ enum class PlayerFx(val label: String) {
     DUST("宇宙尘埃特效"),
 }
 
+/** 播放页 UI 风格。
+ *  - NETEASE（默认）：复刻网易云，左封面 + 右歌词，直接铺在模糊专辑背景上；
+ *  - RNPN：Apple Music 风格（一比一复刻 betterncm-mac 的 RNPN 歌词窗）——浅色暖调模糊背景，
+ *    左栏封面 / 歌名 / 歌手 / 进度 / 控制，右栏逐行缩放淡出歌词，当前行加粗放大。
+ *  老存档没有该字段时取默认 NETEASE，不会重置其它设置。 */
+@Serializable
+enum class PlayerUi(val label: String) {
+    NETEASE("复刻网易"),
+    RNPN("Apple Music"),
+}
+
 /** 全屏歌词特效（参考 YuMusic / QQ 音乐）：
  *  - NONE：常规两栏歌词；
  *  - LIGHT（光感）：全屏居中三行歌词 + 柔和暗角，逐句淡入（原「商籁」）；
@@ -225,6 +236,8 @@ data class Settings(
     val discShape: DiscShape = DiscShape.CIRCLE,
     /** 播放页背景动效：关闭 / 动感波光 / 波纹特效 / 宇宙尘埃特效。 */
     val playerFx: PlayerFx = PlayerFx.WAVE,
+    /** 播放页 UI 风格：复刻网易（默认）或 Apple Music（RNPN 歌词窗一比一复刻）。 */
+    val playerUi: PlayerUi = PlayerUi.NETEASE,
     /** 播放页全屏歌词特效：关闭 / 光感 / 星海。 */
     val fullscreenLyricFx: FullscreenLyricFx = FullscreenLyricFx.NONE,
     /** 播放页唱片（封面）整体大小的缩放系数：0.5–3.0（步长 0.1，默认 1.0）。

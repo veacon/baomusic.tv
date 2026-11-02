@@ -32,16 +32,22 @@ class ScriptStore(private val context: Context, private val sourceManager: Sourc
         ensureBuiltInScripts()
     }
 
-    /** Import the lx v4 scripts shipped in `assets/builtin_scripts`.
+    /** Import the lx v4 scripts shipped in `assets/builtin_scripts`, and drop the built-in
+     *  copies that this build no longer ships.
      *
      *  Rules: a bundled script is imported when it isn't there yet, or when the installed copy
      *  is itself a built-in one whose source text has changed (i.e. the app shipped an update).
      *  A same-named script the *user* imported by hand is left alone.
+     *
+     *  The removal pass matters when the bundled set is swapped out wholesale (e.g. 旧的 15 个
+     *  落雪源换成 10 月这批 7 个)：升级安装后那些不再随包的内置源会被卸载，用户自己导入的
+     *  源不受影响。
      */
     suspend fun ensureBuiltInScripts() {
         val names = withContext(Dispatchers.IO) {
             runCatching { context.assets.list(BUILTIN_DIR)?.toList() }.getOrNull()
         } ?: return
+        val shipped = mutableSetOf<Pair<String, String>>()
         for (fileName in names.filter { it.endsWith(".js") }.sorted()) {
             val raw = withContext(Dispatchers.IO) {
                 runCatching {
@@ -51,6 +57,7 @@ class ScriptStore(private val context: Context, private val sourceManager: Sourc
             val meta = parseHeader(raw)
             val scriptName = meta["name"]?.takeIf { it.isNotBlank() } ?: fileName.removeSuffix(".js")
             val author = meta["author"] ?: ""
+            shipped += scriptName to author
             val existing = _scripts.value.firstOrNull { it.name == scriptName && it.author == author }
             when {
                 // 已装且内容一致 → 无事可做
@@ -59,6 +66,13 @@ class ScriptStore(private val context: Context, private val sourceManager: Sourc
                 existing != null && !existing.builtin -> continue
                 else -> runCatching { import(raw, builtin = true) }
             }
+        }
+        // 卸载已不再随包的内置源（用户导入的不动）。
+        val stale = _scripts.value.filter { it.builtin && (it.name to it.author) !in shipped }
+        if (stale.isNotEmpty()) {
+            stale.forEach { sourceManager.unload(it.id) }
+            _scripts.value = _scripts.value - stale.toSet()
+            persist()
         }
     }
 

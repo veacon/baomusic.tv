@@ -444,18 +444,38 @@ internal fun AppearancePage(
     modifier: Modifier = Modifier,
 ) {
     SettingsPageScaffold(modifier) {
+        Section("播放界面UI") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                com.baogemusic.tv.data.store.PlayerUi.entries.forEachIndexed { index, ui ->
+                    TvPill(
+                        onClick = { onUpdate { it.copy(playerUi = ui) } },
+                        selected = settings.playerUi == ui,
+                        modifier = if (index == 0) Modifier.focusRequester(firstFocus) else Modifier,
+                    ) { Text(ui.label, fontSize = 13.sp) }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            HintText(
+                when (settings.playerUi) {
+                    com.baogemusic.tv.data.store.PlayerUi.NETEASE ->
+                        "复刻网易云播放页：左侧大封面（可调唱片形状 / 大小）+ 右侧歌词，直接铺在模糊专辑背景上，底部是进度与播放控件。"
+                    com.baogemusic.tv.data.store.PlayerUi.RNPN ->
+                        "Apple Music 风格（一比一复刻 betterncm-mac 的 RNPN 歌词窗）：浅色暖调模糊背景；左栏封面 / 歌名 / 歌手 / 进度 / 控制，右栏歌词逐行缩放淡出，当前行加粗放大。该模式下不显示底部控制栏与波形，控件都在左栏。"
+                },
+            )
+        }
+
         Section("播放页布局") {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 PlayerLayout.entries.forEachIndexed { index, layout ->
                     TvPill(
                         onClick = { onUpdate { it.copy(playerLayout = layout) } },
                         selected = settings.playerLayout == layout,
-                        modifier = if (index == 0) Modifier.focusRequester(firstFocus) else Modifier,
                     ) { Text(layout.label, fontSize = 13.sp) }
                 }
             }
             Spacer(Modifier.height(8.dp))
-            HintText("切换播放页里唱片和歌词谁在左、谁在右（默认「歌词左 · 唱片右」）。")
+            HintText("切换播放页里唱片和歌词谁在左、谁在右（默认「歌词左 · 唱片右」）。仅「复刻网易」布局生效。")
         }
 
         Section("唱片") {
@@ -730,7 +750,7 @@ internal fun ConnectPage(
 
     SettingsPageScaffold(modifier) {
         Section("自定义音源") {
-            HintText("粘贴 URL 自动远程拉取；直接粘贴脚本则按 JS 代码导入；或上传 .js 文件；扫码可在手机/电脑操作。")
+            HintText("粘贴 URL 自动远程拉取；直接粘贴脚本则按 JS 代码导入；或上传 .js 文件；扫码可在手机/电脑操作。GitHub 链接会自动走镜像（jsDelivr → gh-proxy → ghfast 等）依次尝试，大陆网络也能直接粘贴 raw 链接。")
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TvTextFieldHost(modifier = Modifier.weight(1f), shape = RoundedCornerShape(4.dp)) { fieldModifier ->
                     OutlinedTextField(

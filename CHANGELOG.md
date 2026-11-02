@@ -134,13 +134,38 @@
   覆盖播放页（动感波光 / 波纹特效）、三种全屏歌词（光感 / 星海 / 胶片）、
   推荐 / 排行榜 / 歌单 / 我的列表，以及 9 张设置页；删除 4 张带旧品牌的上游截图。
 
-## 十四、构建产物
+## 十四、内置音源换血 + Apple Music 风格播放页 + 全链路镜像
+- **内置音源替换**：`assets/builtin_scripts/` 从旧的 15 个落雪源换成 2026 年 10 月这批 7 个
+  （独家音源 v7 / fish_music 1.9.0 / HelloWorld / HYWmusic 公益版 v1.2.0 / 杰翔聚合 2.3.0 /
+  玉宁熙 Pro v1.2.2 / 星海 v3.2.15），全部为 10-19 ~ 10-29 更新。
+  - `ScriptStore.ensureBuiltInScripts()` 新增清理逻辑：升级安装后，**不再随包的内置源会被自动卸载**，
+    用户自己导入的源不受影响。
+  - 注意 HYWmusic 需要卡密激活；玉宁熙作者标注「最后一版」。
+- **新增播放界面 UI：Apple Music（RNPN）**，一比一复刻 betterncm-mac 的 RNPN 歌词窗
+  （`OyangDer/betterncm-mac`）。设置 → 外观 → 播放界面UI 可在「复刻网易 / Apple Music」间切换。
+  - 浅色暖调模糊背景：模糊封面 + 从封面取的强调色蒙版 55% + 暖白提亮，对应
+    `rnpn-bg.css` 的 `.rnp-background-blur`。
+  - 左栏（`rnpn-main.css` 的 `.sd`，22% 屏宽）：圆角 16dp 封面 + 玻璃收藏钮 + 歌名（加粗）+
+    歌手 / 专辑 + `···` + 细进度条 + 时间 + 控制行（随机 / 上一首 / 播放 / 下一首 / 队列）。
+  - 右栏 RNPN 歌词（`lyrics.js` 的 `effects()` 与 `layout()` **逐公式还原**）：
+    - 每行 `scale = (1-0.2k)^3 * 0.08 + 0.92`、`blur = min(0.5+k, 4.5)`、`opacity = 1-0.4(k-1)`；
+    - 当前行锚在 50% 高度，其余行按 `h*scale + 1.2*fontPx` 依次推开；
+    - `transform-origin: left center`；顶部 / 底部 3% alpha 渐隐；
+    - 行内透明度：当前行原文 1.0 / 译文 0.8，非当前行 0.4（CSS `offset="0"` 规则）。
+  - 该模式下隐藏底部控制栏与波形（控件都在左栏），全屏歌词特效仍可与之叠加。
+  - 行模糊用 `Modifier.blur`，Android 8/9 上自动降级为不模糊（缩放 + 淡出完整保留）。
+- **全链路镜像**：新增 `net/GithubMirrors.kt`，把一条 GitHub 链接展开为
+  「直连 → jsDelivr（`cdn.jsdelivr.net/gh/...`）→ gh-proxy → ghfast → ghproxy → gh.ddlc」
+  依次尝试；脚本「在线导入」接入该链路，大陆网络直接粘贴 raw 链接即可。
+  - jsDelivr 实测 7/7 源 200；release 附件不走 jsDelivr（CDN 只服务仓库内已提交的文件）。
+
+## 十五、构建产物
 - `app/build/outputs/apk/release/` 下四个 APK（见上节体积），均使用 debug 签名（仓库无 keystore）；
   如需正式签名，放入 `keystore.properties` + `release.keystore` 后重新构建。
 - 内置字体「小抖动侠情书」约 3.5MB、「Aa祝你我明媚向春天」约 14.4MB，是包体的主要构成。
 - **由于设置字段有破坏性变更，首次启动会恢复默认偏好**，需要重新调一次歌词字号 / 对齐等；升级后上述「默认值调整」会按新默认生效。
 
-## 十五、发布注意事项
+## 十六、发布注意事项
 1. 仓库已固定为 `veacon/baomusic.tv`（`UpdateManager` 的 `OWNER` / `REPO`）；换仓库只需改这两行。
 2. 不要提交 `local.properties`、`*.keystore`、`build/` 目录（已在 `.gitignore` 内）。
 3. Release 里的 APK 命名保持 `baoge-tv-<版本>-<abi>-release.apk`，应用内更新器按 `-<abi>-` 自动匹配；

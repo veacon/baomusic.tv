@@ -191,7 +191,10 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
   }
 
   Box(modifier = modifier.fillMaxSize().background(AppColors.BgDeep)) {
-    CoverBackdrop(picURL = track?.picURL)
+    // Apple Music（RNPN）模式自带浅色模糊背景，不用全局那层深色封面模糊。
+    val rnpnMode = settings.playerUi == com.baogemusic.tv.data.store.PlayerUi.RNPN &&
+        settings.fullscreenLyricFx == FullscreenLyricFx.NONE
+    if (!rnpnMode) CoverBackdrop(picURL = track?.picURL)
 
     if (track == null) {
       Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -358,7 +361,31 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
       )
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 32.dp)) {
+    if (rnpnMode) {
+      // Apple Music 风格（一比一复刻 betterncm-mac 的 RNPN 歌词窗）：
+      // 整屏全幅，左栏自带封面 / 歌名 / 进度 / 控制，底部控制栏与波形让位给它。
+      RnpnStage(
+        track = track,
+        lyrics = lyrics,
+        positionMs = state.positionMs,
+        durationMs = state.durationMs,
+        isPlaying = state.isPlaying,
+        isShuffle = state.shuffle,
+        isFaved = love.tracks.any { it.id == track.id },
+        lyricFontSizeSp = activeSp,
+        showTranslation = settings.showLyricTranslation,
+        lyricFontFamily = lyricFont,
+        onTogglePlay = { controller.togglePlay() },
+        onPrev = { controller.prev() },
+        onNext = { controller.next() },
+        onToggleShuffle = { controller.toggleShuffle() },
+        onToggleFav = { showPicker = true },
+        onShowQueue = { showQueue = true },
+        onShowMore = { showEqDialog = true },
+        onSeekTo = { controller.seekTo(it) },
+        modifier = Modifier.fillMaxSize(),
+      )
+    } else Column(modifier = Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 32.dp)) {
       if (fullscreenFx != FullscreenLyricFx.NONE) {
         // 全屏歌词模式：封面 / 波形让位，只保留底部控制栏（自动隐藏）。
         Spacer(Modifier.weight(1f))

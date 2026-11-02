@@ -1,5 +1,957 @@
-/**
- * @name 野花🌷
- * @version 1.0.0
+/*!
+ * @name         星海音乐源
+ * @description  GDAPI | 聚合 | ChKSz API | 全平台支持 24bit FLAC，网易、酷狗、QQ 最高支持母带
+ * @version      v3.2.15
+ * @author       万去了了 / 科学大魔王
+ * @homepage     https://zddyr.top/
+ * @see          http://gc.kxwa.top/
+ * @lastUpdate   2026-10-02
+ * @update       1. 新增汽水音乐支持（测试）；2. 感谢科学大魔王的技术支持；3. 国庆快乐
+ * @license      仅供学习交流，请支持正版
  */
-function O(){const R=['\x33\x39\x33\x34\x36\x38\x35\x45\x4a\x73\x79\x70\x6e','\x34\x31\x35\x35\x32\x32\x30\x73\x68\x6a\x6d\x71\x64','\x63\x6f\x64\x65','\x68\x61\x73\x68','\x63\x6f\x70\x79\x72\x69\x67\x68\x74\x49','\x47\x45\x54','\x68\x65\x78','\x67\x53\x79\x45\x4d','\x34\x30\x30\x39\x33\x33\x36\x74\x77\x4e\x48\x5a\x78','\x51\x54\x64\x63\x58','\x76\x4d\x49\x75\x4e','\x61\x63\x47\x4f\x7a','\x69\x61\x6d\x7a\x57','\x6b\x77\x7c\x31\x32\x38\x6b\x26\x77\x79','\x2f\x75\x72\x6c\x2f','\x6e\x4e\x68\x44\x6e','\x62\x75\x66\x54\x6f\x53\x74\x72\x69\x6e','\x31\x31\x39\x39\x32\x34\x5a\x68\x75\x61\x72\x61','\x6c\x78\x2d\x6d\x75\x73\x69\x63\x2f','\x73\x74\x72\x69\x6e\x67\x69\x66\x79','\x77\x65\x72\x2e\x74\x65\x6d\x70\x6d\x75','\x64\x61\x74\x61','\x51\x56\x6a\x7a\x45','\x2f\x75\x72\x6c\x69\x6e\x66\x6f\x2f','\x6d\x75\x73\x69\x63\x55\x72\x6c','\x31\x35\x31\x30\x37\x30\x37\x69\x56\x6d\x41\x73\x6f','\x6d\x64\x35','\x43\x78\x6c\x49\x4c','\x6d\x61\x74\x63\x68','\x72\x65\x71\x75\x65\x73\x74','\x39\x35\x39\x31\x31\x36\x6c\x45\x57\x57\x5a\x43','\x73\x6f\x6e\x67\x6d\x69\x64','\x73\x6f\x75\x72\x63\x65\x73','\x68\x74\x74\x70\x3a\x2f\x2f\x66\x6c\x6f','\x62\x75\x66\x66\x65\x72','\x31\x34\x4e\x6f\x69\x54\x4e\x48','\x73\x70\x6c\x69\x74','\x35\x31\x35\x39\x50\x66\x57\x61\x6f\x70','\x69\x6e\x69\x74\x65\x64','\x44\x46\x6a\x62\x4e','\x7c\x31\x32\x38\x6b\x26\x6d\x67\x7c\x31','\x73\x69\x63\x73\x2e\x74\x6b\x2f\x76\x31','\x31\x30\x38\x37\x38\x58\x6e\x65\x61\x4b\x46','\x74\x61\x67','\x66\x72\x6f\x6d','\x4b\x45\x57\x45\x4d','\x33\x4d\x68\x4b\x46\x79\x4a','\x77\x72\x44\x44\x46','\x51\x58\x63\x45\x49','\x75\x49\x54\x67\x78','\x32\x38\x6b\x26\x74\x78\x7c\x31\x32\x38','\x49\x4c\x6b\x4a\x4b','\x46\x68\x6b\x4e\x48','\x63\x72\x79\x70\x74\x6f','\u670d\u52a1\u5668\u5f02\u5e38','\x66\x61\x69\x6c\x65\x64','\x46\x70\x54\x6d\x50','\x31\x35\x36\x4b\x47\x44\x4f\x75\x6e','\x6d\x73\x67','\x66\x69\x61\x6c\x65\x64','\x62\x6f\x64\x79','\x6b\x26\x6b\x67\x7c\x31\x32\x38\x6b','\x4c\x43\x54\x51\x58','\x73\x68\x69\x66\x74','\x50\x6b\x4a\x6c\x48','\x78\x54\x6d\x67\x67','\x6d\x75\x73\x69\x63','\x72\x61\x77\x53\x63\x72\x69\x70\x74','\x39\x57\x51\x79\x76\x6a\x65','\x76\x65\x72\x73\x69\x6f\x6e','\x75\x70\x64\x61\x74\x65\x41\x6c\x65\x72','\x74\x72\x69\x6d','\x6c\x65\x63\x53\x47'];O=function(){return R;};return O();}function Z(Y,L){const K=O();return Z=function(U,H){U=U-(0x1*0x128b+-0x2084+0xf52);let S=K[U];return S;},Z(Y,L);}const k=Z;(function(Y,L){const F={Y:'\x30\x78\x31\x39\x30',L:0x159,K:'\x30\x78\x31\x36\x34',U:'\x30\x78\x31\x39\x64',H:0x17f,S:0x160,N:'\x30\x78\x31\x35\x62',B:0x187,v:0x17a,G:'\x30\x78\x31\x38\x30',M:0x198,T:0x16f},A=Z,K=Y();while(!![]){try{const U=parseInt(A(F.Y))/(0x26d0+-0x5ac+-0x1f3*0x11)*(parseInt(A(F.L))/(-0x4*-0x2d0+-0x2567+0x1a29))+-parseInt(A(F.K))/(-0x1f11+0x1517+0x9fd)*(parseInt(A(F.U))/(-0x1*-0xd3d+-0x985+-0x3b4))+parseInt(A(F.H))/(0x49*0x24+0x36+-0xa75)+-parseInt(A(F.S))/(-0x1*0x10f1+-0xbd1+0x133*0x18)*(parseInt(A(F.N))/(0x44a+0x4f8+0x1*-0x93b))+-parseInt(A(F.B))/(0x728*-0x3+0x1f78+0x27e*-0x4)*(parseInt(A(F.v))/(0x240f*0x1+-0x2288+-0x17e))+-parseInt(A(F.G))/(0x26a2+-0x72*-0x7+-0x29b6)+-parseInt(A(F.M))/(0xf1b+-0x10d*0x3+0xbe9*-0x1)*(-parseInt(A(F.T))/(0x1b7d+0x2479+-0x3fea));if(U===L)break;else K['push'](K['shift']());}catch(H){K['push'](K['shift']());}}}(O,0x8da*0x2af+0x7cc0+-0xa3765));const {EVENT_NAMES:e,request:t,on:r,send:o,env:s,version:d,currentScriptInfo:i,utils:u}=globalThis['\x6c\x78'],getId=(Y,L)=>{const p={Y:0x16d,L:'\x30\x78\x31\x39\x65',K:0x182,U:'\x30\x78\x31\x38\x33',H:'\x30\x78\x31\x36\x35',S:0x167},I=Z,K={'\x77\x72\x44\x44\x46':function(U,H){return U(H);},'\x75\x49\x54\x67\x78':I(p.Y)};switch(Y){case'\x74\x78':case'\x77\x79':case'\x6b\x77':return L[I(p.L)];case'\x6b\x67':return L[I(p.K)];case'\x6d\x67':return L[I(p.U)+'\x64'];}throw K[I(p.H)](Error,K[I(p.S)]);},headers={'\x55\x73\x65\x72\x2d\x41\x67\x65\x6e\x74':k(0x191)+s,'\x76\x65\x72':d,'\x73\x6f\x75\x72\x63\x65\x2d\x76\x65\x72':i[k('\x30\x78\x31\x37\x62')]};r(e[k('\x30\x78\x31\x39\x63')],({source:Y,action:L,info:{musicInfo:K,type:U}})=>{const g={Y:0x185,L:'\x30\x78\x31\x61\x30',K:0x193,U:'\x30\x78\x31\x35\x66',H:'\x30\x78\x31\x38\x34',S:0x197,N:0x171,B:0x188,v:'\x30\x78\x31\x38\x61',G:'\x30\x78\x31\x35\x64',M:'\x30\x78\x31\x36\x39'},m={Y:'\x30\x78\x31\x38\x64',L:'\x30\x78\x31\x38\x39',K:0x161,U:0x1a1,H:'\x30\x78\x31\x38\x66',S:'\x30\x78\x31\x61\x31',N:0x162,B:0x192,v:0x19b,G:'\x30\x78\x31\x36\x36',M:0x174,T:0x18b,E:0x176,g:'\x30\x78\x31\x38\x65'},x=k,H={'\x76\x4d\x49\x75\x4e':function(S,N,B){return S(N,B);},'\x51\x58\x63\x45\x49':x(g.Y),'\x4c\x43\x54\x51\x58':function(S,N,B,v){return S(N,B,v);},'\x69\x61\x6d\x7a\x57':function(S,N){return S+N;},'\x50\x6b\x4a\x6c\x48':x(g.L)+x(g.K)+x(g.U),'\x6e\x4e\x68\x44\x6e':x(g.H),'\x51\x54\x64\x63\x58':function(S,N){return S!=N;},'\x61\x63\x47\x4f\x7a':x(g.S),'\x44\x46\x6a\x62\x4e':function(S,N){return S(N);},'\x49\x4c\x6b\x4a\x4b':x(g.N)};if(H[x(g.B)](H[x(g.v)],L))throw H[x(g.G)](Error,H[x(g.M)]);return new Promise((S,N)=>{const c=x;let B=c(m.Y)+Y+'\x2f'+H[c(m.L)](getId,Y,K)+'\x2f'+U;headers[c(m.K)]=u[c(m.U)][c(m.H)+'\x67'](u[c(m.S)][c(m.N)](JSON[c(m.B)](B[c(m.v)](/(?:\d\w)+/g),null,0x180c+0x257b+0xa41*-0x6)),H[c(m.G)]),H[c(m.M)](t,H[c(m.T)](H[c(m.E)],B),{'\x6d\x65\x74\x68\x6f\x64':H[c(m.g)],'\x68\x65\x61\x64\x65\x72\x73':headers},(v,G)=>v?N(v):-0x1ed7+-0xef*-0x3+0x1c0a!==G[c(0x172)][c('\x30\x78\x31\x38\x31')]?N(Error(G[c(0x172)][c(0x170)])):void S(G[c('\x30\x78\x31\x37\x32')][c('\x30\x78\x31\x39\x34')]));});}),t(k('\x30\x78\x31\x61\x30')+k('\x30\x78\x31\x39\x33')+k(0x15f)+k('\x30\x78\x31\x39\x36')+i[k('\x30\x78\x31\x37\x62')],{'\x6d\x65\x74\x68\x6f\x64':k('\x30\x78\x31\x38\x34'),'\x68\x65\x61\x64\x65\x72\x73':headers},(U,H)=>{const C={Y:'\x30\x78\x31\x38\x63',L:0x15e,K:'\x30\x78\x31\x36\x38',U:0x173,H:'\x30\x78\x31\x36\x63',S:0x178,N:'\x30\x78\x31\x39\x37',B:'\x30\x78\x31\x38\x31',v:'\x30\x78\x31\x37\x65',G:0x172,M:'\x30\x78\x31\x36\x33',T:'\x30\x78\x31\x38\x31',E:0x172,R:'\x30\x78\x31\x39\x61',n:'\x30\x78\x31\x36\x62',b:'\x30\x78\x31\x39\x39',q:0x179,X:0x17d,D:0x177,V:'\x30\x78\x31\x37\x32',h:'\x30\x78\x31\x37\x30',O0:0x16a,O1:0x172,O2:'\x30\x78\x31\x37\x64',O3:'\x30\x78\x31\x35\x61',O4:0x15a,O5:'\x30\x78\x31\x37\x35',O6:'\x30\x78\x31\x38\x36',O7:0x195,O8:'\x30\x78\x31\x39\x66',O9:0x16e,OO:0x15c,OZ:'\x30\x78\x31\x37\x32',OY:0x17c,OL:0x172,OK:'\x30\x78\x31\x37\x32'},a=k,S={'\x6c\x65\x63\x53\x47':a(C.Y)+a(C.L)+a(C.K)+a(C.U),'\x4b\x45\x57\x45\x4d':function(M,T){return M!==T;},'\x43\x78\x6c\x49\x4c':function(M,T){return M!=T;},'\x78\x54\x6d\x67\x67':function(M,T){return M(T);},'\x46\x68\x6b\x4e\x48':a(C.H),'\x67\x53\x79\x45\x4d':a(C.S),'\x51\x56\x6a\x7a\x45':a(C.N),'\x46\x70\x54\x6d\x50':function(M,T,E){return M(T,E);}},N={};N[a(C.B)]=0x0,N['\x73']=S[a(C.v)];const B={};B[a(C.G)]=N;if(U&&(H=B),S[a(C.M)](-0x1343*0x1+0x25ad+-0x126a,H[a(C.G)][a(C.T)])||H[a(C.E)]['\x6d']&&S[a(C.R)](u[a(C.n)][a(C.b)](i[a(C.q)][a(C.X)]()),H[a(C.E)]['\x6d']))throw S[a(C.D)](Error,H[a(C.V)][a(C.h)]??S[a(C.O0)]);let v={};for(let M of H[a(C.O1)]['\x73'][a(C.O2)]()[a(C.O3)]('\x26'))v[(M=M[a(C.O4)]('\x7c'))[a(C.O5)]()]={'\x74\x79\x70\x65':S[a(C.O6)],'\x61\x63\x74\x69\x6f\x6e\x73':[S[a(C.O7)]],'\x71\x75\x61\x6c\x69\x74\x79\x73':M};const G={};G[a(C.O8)]=v,(S[a(C.O9)](o,e[a(C.OO)],G),H[a(C.OZ)]['\x75']&&S[a(C.O9)](o,e[a(C.OY)+'\x74'],{'\x6c\x6f\x67':H[a(C.OL)]['\x75'],'\x75\x70\x64\x61\x74\x65\x55\x72\x6c':H[a(C.OK)]['\x68']}));});
+
+const { EVENT_NAMES, request, on, send, env } = globalThis.lx;
+
+// ==================== 用户配置区域 ====================
+const KW_DECRYPT_PROXY = {
+    url: '',
+    allowEncryptedLossless: false,
+    urlParamName: 'url',
+    ekeyParamName: 'ekey',
+};
+
+const CHKSZ_CONFIG = {
+    apikey: '',
+    enableNetease: true,
+    enableQQ: true,
+};
+
+const KW_LOCAL_CONFIG = {
+    enabled: true,
+    strictHighEnd: true,
+    fallbackToBackend: true,
+};
+// ====================================================
+
+const URL_CONFIG = {
+    domains: {
+        primary: 'yy.zddyr.top',
+        fallback: 'zrcdy.dpdns.org',
+        gdStudio: 'music-api.gdstudio.xyz',
+        chkszNew: 'api.chksz.com'
+    },
+    paths: {
+        backend: '/lx/api/',
+        version: '/lx/versionh2.php',
+        update: '/lx/vers.php',
+        ip: '/ip.php',
+        gdApi: '/api.php',
+        chkszNetease: '/api/163_music',
+        chkszQQ: '/api/qq_music'
+    },
+    gdParams: 'use_xbridge3=true&loader_name=forest&need_sec_link=1&sec_link_scene=im&theme=light'
+};
+
+const buildUrl = (domainKey, pathKey, extraQuery = '') => {
+    const domain = URL_CONFIG.domains[domainKey];
+    const path = URL_CONFIG.paths[pathKey];
+    if (!domain || !path) throw new Error(`URL配置错误: ${domainKey} / ${pathKey}`);
+    let url = `https://${domain}${path}`;
+    if (extraQuery) {
+        if (extraQuery.startsWith('&') && !path.includes('?')) {
+            url += '?' + extraQuery.substring(1);
+        } else {
+            url += extraQuery;
+        }
+    }
+    return url;
+};
+
+const SCRIPT_VERSION = 'v3.2.15';
+const SCRIPT_NAME = 'XingHaiMusicSource';
+const SOURCE_MAP = { tx: 'qq', mg: 'migu', kw: 'kw', kg: 'kg', qs: 'qs' };
+const PLATFORM_NAMES = { wy: '网易云音乐', tx: 'QQ音乐', kw: '酷我音乐', kg: '酷狗音乐', mg: '咪咕音乐', qs: '汽水音乐' };
+const MUSIC_QUALITIES = {
+    wy: ['128k','320k','flac','hires','atmos','master'],
+    tx: ['128k','192k','320k','flac','hires','atmos','atmos_plus','master'],
+    kw: ['128k','320k','flac','hires','atmos','master'],
+    kg: ['128k','320k','flac','hires','atmos','master'],
+    mg: ['128k','320k','flac'],
+    qs: ['128k','320k','flac','spatial','hires']
+};
+
+const CHKSZ_NETEASE_LEVEL_MAP = {
+    '128k': 'standard', '320k': 'exhigh', 'flac': 'lossless',
+    'hires': 'hires', 'atmos': 'jymaster', 'master': 'jymaster'
+};
+
+const CHKSZ_QQ_SIZE_MAP = {
+    '128k': '128k', '192k': '320k', '320k': '320k',
+    'flac': 'flac', 'hires': 'hires',
+    'atmos': 'master', 'atmos_plus': 'master', 'master': 'master'
+};
+
+const GD_BR_MAP = { '128k':'128', '320k':'320', 'flac':'740', 'hires':'999' };
+const GD_SUPPORTED_QUALITIES = new Set(['128k','320k','flac','hires']);
+
+const TOKEN_TTL = 5 * 60 * 1000;
+
+let userIp = null;
+let userToken = '';
+let tokenTimestamp = 0;
+let clientHeader = '';
+let deviceId = '';
+let availablePlatforms = [];
+let backendAggBlocked = false;
+const extraCache = new Map();
+
+// ==================== 酷我本地直连配置 ====================
+const KW_UA_MOBI = 'okhttp/3.10.0';
+const KW_UA_WEB = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+const KW_TIMEOUT = 15000;
+
+const KW_QUALITIES = {
+    '128k':  { br: '128kmp3',    format: 'mp3',   desc: '标准 128k',      min_kbps: 96,   max_kbps: 192,  target_kbps: 128 },
+    '192k':  { br: '192kmp3',    format: 'mp3',   desc: '中品 192k',      min_kbps: 161,  max_kbps: 255,  target_kbps: 192 },
+    '320k':  { br: '320kmp3',    format: 'mp3',   desc: '高品 320k',      min_kbps: 256,  max_kbps: 360,  target_kbps: 320 },
+    'flac':  { br: '2000kflac',  format: 'flac',  desc: '无损 FLAC',      min_kbps: 800,  max_kbps: 3000, target_kbps: 2000 },
+    'hires': { br: '4000kflac',  format: 'flac',  desc: 'Hi-Res 母带',    min_kbps: 3000, max_kbps: 20000,target_kbps: 4000 },
+    'hifi':  { br: '6000kflac',  format: 'mflac', desc: '超高音质(加密)', min_kbps: 4000, max_kbps: 20000,target_kbps: 6000 },
+    'master':{ br: '4000kflac',  format: 'flac',  desc: '母带(Hi-Res)',   min_kbps: 3000, max_kbps: 20000,target_kbps: 4000 },
+    'atmos': { br: '20501kzpga', format: 'mflac', desc: '臻品全景声(加密)',min_kbps: 3000,max_kbps: 23000,target_kbps: 20501 },
+    'zpga':  { br: '20501kzpga', format: 'mflac', desc: '臻品全景声(加密)',min_kbps: 3000,max_kbps: 23000,target_kbps: 20501 },
+    'sur':   { br: '20501kzpga', format: 'mflac', desc: '臻品全景音(加密)',min_kbps: 3000,max_kbps: 23000,target_kbps: 20501 },
+    'atmos_plus': { br: '24900kszpga', format: 'mflac', desc: '臻品全景声Atmos+(加密)', min_kbps: 22000, max_kbps: 26000, target_kbps: 24900 },
+    'zp':    { br: '20900kzply', format: 'mflac', desc: '臻品母带(加密mgg)', min_kbps: 3000, max_kbps: 25000, target_kbps: 20900 },
+    'jymaster': { br: '28000kzlmaster', format: 'mgg', desc: '臻品母带极致(加密mgg)', min_kbps: 24000, max_kbps: 32000, target_kbps: 28000 },
+};
+
+const KW_QUALITIES_ALIAS = {
+    'atmos+': 'atmos_plus', 'atmosplus': 'atmos_plus', 'atmos2': 'atmos_plus',
+    'sur+': 'atmos_plus',
+    'zp+': 'jymaster', 'zpplus': 'jymaster', 'zp2': 'jymaster',
+};
+
+const KW_PLUGIN_TO_LOCAL = {
+    '128k': '128k', '320k': '320k', 'flac': 'flac',
+    'hires': 'hires', 'atmos': 'atmos', 'master': 'master',
+};
+
+const KW_BR_CHAIN = {
+    '128k':  ['128kmp3'],
+    '192k':  ['192kmp3', '128kmp3'],
+    '320k':  ['320kmp3', '192kmp3', '128kmp3'],
+    'flac':  ['2000kflac', '320kmp3', '192kmp3'],
+    'hires': ['4000kflac', '2000kflac', '320kmp3'],
+    'hifi':  ['6000kflac', '4000kflac', '2000kflac', '320kmp3'],
+    'atmos': ['20501kzpga', '2000kflac', '320kmp3'],
+    'master':['4000kflac', '2000kflac', '320kmp3'],
+    'zpga':  ['20501kzpga', '2000kflac', '320kmp3'],
+    'sur':   ['20501kzpga', '2000kflac', '320kmp3'],
+    'atmos_plus': ['24900kszpga', '20501kzpga', '2000kflac', '320kmp3'],
+    'zp':    ['20900kzply', '2000kflac', '320kmp3'],
+    'jymaster': ['28000kzlmaster', '20900kzply', '2000kflac', '320kmp3'],
+};
+
+const KW_LOSSLESS_PLUS = new Set(['flac','hires','hifi','atmos','master','zp','zpga','sur','atmos_plus','jymaster']);
+const KW_LOSSLESS_FMTS = new Set(['flac','mgg','mflac']);
+const KW_ENCRYPTED_FMTS = new Set(['mgg','mflac']);
+const KW_HIGH_END = new Set(['hires','hifi','master','atmos','zp','zpga','sur','atmos_plus','jymaster']);
+
+const KW_CHANNELS_PREMIUM = [
+    { name: 'car_conv2', url: 'http://anymatch.kuwo.cn/mobi.s', type: 'convert_url2', source: 'kwplayercar_ar_6.0.0.9_B_jiakong_vh.apk' },
+    { name: 'mobi_conv2', url: 'http://mobi.kuwo.cn/mobi.s', type: 'convert_url2', source: 'kwplayer_ar_8.5.5.0_apk_keluze.apk' },
+];
+const KW_CHANNELS_STABLE = [
+    { name: 'mobi_with_sign', url: 'https://mobi.kuwo.cn/mobi.s', type: 'convert_url_with_sign', source: 'kwplayer_ar_8.5.5.0_apk_keluze.apk' },
+    { name: 'car_sign_6005', url: 'http://nmobi.kuwo.cn/mobi.s', type: 'convert_url_with_sign', source: 'kwplayercar_ar_6.0.0.5_B_jiakong_vh.apk' },
+    { name: 'car_sign_6100', url: 'http://nmobi.kuwo.cn/mobi.s', type: 'convert_url_with_sign', source: 'kwplayercar_ar_6.1.0.0_B_jiakong_vh.apk' },
+];
+const KW_CHANNELS_FALLBACK = [
+    { name: 'sign_mobi_http', url: 'http://mobi.kuwo.cn/mobi.s', type: 'convert_url_with_sign', source: 'kwplayer_ar_8.5.5.0_apk_keluze.apk' },
+];
+
+const kwUrlCache = new Map();
+const KW_CACHE_TTL = 30 * 60 * 1000;
+
+// -------------------- 工具函数 --------------------
+function isBuffer(obj) {
+    return obj && typeof obj === 'object' &&
+        ((typeof Buffer !== 'undefined' && Buffer.isBuffer(obj)) ||
+        (typeof obj.constructor === 'function' && obj.constructor.name === 'Buffer'));
+}
+
+function safeParseBody(body) {
+    if (typeof body === 'string') {
+        const trimmed = body.trim();
+        if (/^[{["]/.test(trimmed)) { try { return JSON.parse(trimmed); } catch (e) {} }
+        return body;
+    }
+    if (typeof body === 'object' && body !== null) {
+        try { if (typeof body.toString === 'function' && body.toString() !== '[object Object]') body = body.toString('utf-8'); } catch (e) {}
+        if (typeof body === 'object' && !isBuffer(body)) return body;
+    }
+    try {
+        if (isBuffer(body)) {
+            if (globalThis.lx?.utils?.buffer?.bufToString) body = globalThis.lx.utils.buffer.bufToString(body, 'utf-8');
+            else if (typeof Buffer !== 'undefined') body = Buffer.from(body).toString('utf-8');
+            else body = String(body);
+        }
+    } catch (e) {}
+    if (typeof body === 'string') {
+        const trimmed = body.trim();
+        if (/^[{["]/.test(trimmed)) { try { return JSON.parse(trimmed); } catch (e) {} }
+    }
+    return body;
+}
+
+function safeBase64Encode(str) {
+    try {
+        if (globalThis.lx?.utils?.buffer?.from) {
+            const buf = globalThis.lx.utils.buffer.from(str, 'utf-8');
+            return globalThis.lx.utils.buffer.bufToString(buf, 'base64');
+        }
+        if (typeof Buffer !== 'undefined') return Buffer.from(str, 'utf-8').toString('base64');
+        return btoa(unescape(encodeURIComponent(str)));
+    } catch (e) {
+        return str;
+    }
+}
+
+function simpleGetQueryParam(url, key) {
+    if (typeof url !== 'string' || !url) return null;
+    const qIdx = url.indexOf('?');
+    if (qIdx < 0) return null;
+    let query = url.substring(qIdx + 1);
+    const hashIdx = query.indexOf('#');
+    if (hashIdx >= 0) query = query.substring(0, hashIdx);
+    const pairs = query.split('&');
+    for (const p of pairs) {
+        const eq = p.indexOf('=');
+        if (eq < 0) continue;
+        if (p.substring(0, eq) === key) {
+            try { return decodeURIComponent(p.substring(eq + 1)); } catch (e) { return p.substring(eq + 1); }
+        }
+    }
+    return null;
+}
+
+function generateDeviceId() {
+    return 'lx-online-' + Math.random().toString(36).substring(2, 8) + Date.now().toString(36).slice(-4);
+}
+
+function buildClientHeader() {
+    let deviceType = 'unknown';
+    try {
+        const p = (env?.platform || '').toLowerCase();
+        if (p.includes('android')) deviceType = 'Android';
+        else if (p.includes('ios')) deviceType = 'iOS';
+        else if (p.includes('win')) deviceType = 'Windows';
+        else if (p.includes('mac')) deviceType = 'macOS';
+        else if (p.includes('linux')) deviceType = 'Linux';
+    } catch (e) {}
+    return `${SCRIPT_NAME}/${SCRIPT_VERSION} (${deviceType})`;
+}
+
+function generateToken(ip) {
+    if (!deviceId) deviceId = generateDeviceId();
+    const payload = {
+        device_id: deviceId,
+        ip: ip || '0.0.0.0',
+        timestamp: Math.floor(Date.now() / 1000),
+        random: Math.random().toString(36).substring(2, 12)
+    };
+    tokenTimestamp = Date.now();
+    return safeBase64Encode(JSON.stringify(payload));
+}
+
+function ensureTokenFresh() {
+    if (!userToken || (Date.now() - tokenTimestamp) > TOKEN_TTL) {
+        userToken = generateToken(userIp);
+    }
+}
+
+const httpFetch = (url, options = {}) => new Promise((resolve, reject) => {
+    if (!options.noAuth) ensureTokenFresh();
+    const headers = { ...(options.headers || {}) };
+    if (!options.noAuth) {
+        if (userToken) headers['X-Token'] = userToken;
+        if (clientHeader) headers['X-Client'] = clientHeader;
+    }
+    if (!headers['User-Agent']) headers['User-Agent'] = 'lx-music';
+    request(url, { ...options, headers }, (err, resp) => {
+        if (err) return reject(err);
+        resolve({ body: safeParseBody(resp.body), statusCode: resp.statusCode, headers: resp.headers || {} });
+    });
+});
+
+function mapQuality(target, avail) {
+    const pm = {
+        '臻品母带': 'jymaster', '臻品音质2.0': 'sky', '臻品音质AI': 'jyeffect',
+        '臻品音质': 'jyeffect', 'Hires 无损24-Bit': 'hires', 'Hi-Res': 'hires',
+        'FLAC': 'flac', '320k': '320k', '192k': '192k', '128k': '128k',
+        '空间音频': 'spatial', 'Spatial': 'spatial'
+    };
+    if (avail.includes(target)) return target;
+    const m = pm[target]; if (m && avail.includes(m)) return m;
+    const order = ['jymaster', 'sky', 'jyeffect', 'hires', 'flac24bit', 'spatial', 'master', 'flac', '320k', '192k', '128k'];
+    for (const q of order) if (avail.includes(q)) return q;
+    return avail[0] || '128k';
+}
+
+// -------------------- 酷我加密链接处理 --------------------
+function processKwEncryptedUrl(data, source) {
+    if (source !== 'kw' || !KW_DECRYPT_PROXY.allowEncryptedLossless) {
+        return data?.url || '';
+    }
+    let ekey = null;
+    if (data?.ekey) {
+        ekey = typeof data.ekey === 'string' ? data.ekey.trim() : String(data.ekey).trim();
+    }
+    if (!ekey && data?.url && typeof data.url === 'string') {
+        ekey = simpleGetQueryParam(data.url, 'ekey');
+    }
+    if (!ekey || !KW_DECRYPT_PROXY.url) {
+        return data?.url || '';
+    }
+    const rawUrl = typeof data.url === 'string' ? data.url : String(data.url);
+    try {
+        return `${KW_DECRYPT_PROXY.url}?${KW_DECRYPT_PROXY.urlParamName}=${encodeURIComponent(rawUrl)}&${KW_DECRYPT_PROXY.ekeyParamName}=${encodeURIComponent(ekey)}`;
+    } catch (e) {
+        return rawUrl;
+    }
+}
+
+// ==================== 酷我本地直连工具函数 ====================
+function kwResolveQuality(q) {
+    if (!q) return q;
+    q = String(q).trim().toLowerCase();
+    if (KW_QUALITIES_ALIAS[q]) return KW_QUALITIES_ALIAS[q];
+    if (KW_QUALITIES[q]) return q;
+    const raw = q.replace(/\+/g, 'plus').replace(/[-_]/g, '');
+    for (const k of Object.keys(KW_QUALITIES_ALIAS)) {
+        const kk = k.replace(/\+/g, 'plus').replace(/[-_]/g, '');
+        if (kk === raw) return KW_QUALITIES_ALIAS[k];
+    }
+    return q;
+}
+
+function kwNormalizeFmt(fmt) {
+    fmt = String(fmt || '').toLowerCase().trim();
+    fmt = fmt.replace(/^\d+k/, '');
+    return fmt;
+}
+
+function kwExtractEkeyFromUrl(url) {
+    const result = {};
+    if (!url) return result;
+    try {
+        const qIdx = url.indexOf('?');
+        if (qIdx < 0) return result;
+        const query = url.substring(qIdx + 1).split('#')[0];
+        const pairs = query.split('&');
+        for (const p of pairs) {
+            const eq = p.indexOf('=');
+            if (eq < 0) continue;
+            const k = p.substring(0, eq);
+            const v = decodeURIComponent(p.substring(eq + 1));
+            if (['ekey','album_id','encrypt','sign','key'].includes(k) && v.length > 3) {
+                result[k] = v;
+            }
+        }
+    } catch (e) {}
+    return result;
+}
+
+function kwExtractEkeyDeep(data, depth = 0, maxDepth = 5) {
+    const found = {};
+    if (depth > maxDepth || data == null) return found;
+    const EKEY_KEYS = ['ekey','album_id','albumid','secret','seckey','decrypt_key','decryptkey','mkey','music_key','k','key'];
+    if (typeof data === 'object' && !Array.isArray(data)) {
+        for (const [k, v] of Object.entries(data)) {
+            const lk = String(k).toLowerCase();
+            if (EKEY_KEYS.includes(lk) && typeof v === 'string' && v.length >= 8) {
+                found[lk] = v;
+            }
+            if (typeof v === 'string' && v.length >= 16 && v.length <= 512 && ['data','info','extra','msg','message','result'].includes(lk)) {
+                try {
+                    const sub = JSON.parse(v);
+                    Object.assign(found, kwExtractEkeyDeep(sub, depth + 1, maxDepth));
+                } catch (e) {}
+            }
+            if (typeof v === 'object' && v !== null) {
+                Object.assign(found, kwExtractEkeyDeep(v, depth + 1, maxDepth));
+            }
+        }
+    } else if (Array.isArray(data)) {
+        for (const item of data) {
+            Object.assign(found, kwExtractEkeyDeep(item, depth + 1, maxDepth));
+        }
+    }
+    return found;
+}
+
+function kwParseBrEntry(brStr, defaultFmt) {
+    brStr = String(brStr);
+    const kIdx = brStr.toLowerCase().lastIndexOf('k');
+    if (kIdx < 0) return { br: brStr, format: defaultFmt };
+    let fmt = brStr.substring(kIdx + 1);
+    if (!fmt) return { br: brStr, format: defaultFmt };
+    const fmtL = fmt.toLowerCase();
+    if (['zply','mgg'].includes(fmtL)) fmt = 'mgg';
+    else if (['zpga','szpga','mflac','zlmaster'].includes(fmtL)) fmt = 'mflac';
+    else if (fmtL === 'flac') fmt = 'flac';
+    else if (fmtL === 'mp3') fmt = 'mp3';
+    return { br: brStr, format: fmt };
+}
+
+const kwHttpFetch = (url, options = {}) => new Promise((resolve, reject) => {
+    const headers = { 'User-Agent': KW_UA_MOBI, ...(options.headers || {}) };
+    request(url, { ...options, headers, timeout: options.timeout || KW_TIMEOUT }, (err, resp) => {
+        if (err) return reject(err);
+        resolve({ body: safeParseBody(resp.body), statusCode: resp.statusCode, headers: resp.headers || {}, rawBody: resp.body });
+    });
+});
+
+async function kwTryChannel(ch, rid, qCfg) {
+    let info = null;
+    let rawResp = null;
+
+    if (ch.type === 'convert_url_with_sign') {
+        const params = new URLSearchParams();
+        params.set('user', '0');
+        params.set('source', ch.source);
+        params.set('type', ch.type);
+        params.set('br', qCfg.br);
+        params.set('format', qCfg.format);
+        params.set('sig', '0');
+        params.set('rid', rid);
+        params.set('network', 'WIFI');
+        params.set('f', 'web');
+        const url = `${ch.url}?${params.toString()}`;
+        const resp = await kwHttpFetch(url);
+        const d = resp.body;
+        if (d && d.code === 200 && d.data && d.data.url) {
+            info = {
+                br: d.data.bitrate,
+                format: d.data.format,
+                url: d.data.url,
+                ekey: d.data.ekey || '',
+            };
+            rawResp = d;
+        }
+    } else if (ch.type === 'convert_url2') {
+        const params = new URLSearchParams();
+        params.set('user', '0');
+        params.set('source', ch.source);
+        params.set('type', ch.type);
+        params.set('br', qCfg.br);
+        params.set('format', qCfg.format);
+        params.set('rid', rid);
+        params.set('network', 'WIFI');
+        params.set('f', 'web');
+        params.set('mode', 'download');
+        const url = `${ch.url}?${params.toString()}`;
+        const resp = await kwHttpFetch(url);
+        const text = typeof resp.body === 'string' ? resp.body : String(resp.body || '');
+        const d = {};
+        for (const line of text.split(/\r?\n/)) {
+            const eq = line.indexOf('=');
+            if (eq > 0) d[line.substring(0, eq).trim()] = line.substring(eq + 1).trim();
+        }
+        if (d.url && !d.url.startsWith('None')) {
+            info = {
+                br: d.bitrate,
+                format: d.format,
+                url: d.url,
+                ekey: d.ekey || '',
+            };
+            rawResp = d;
+        }
+    }
+
+    if (!info) return null;
+
+    let ekeyFinal = info.ekey || '';
+    if (!ekeyFinal) {
+        const urlEk = kwExtractEkeyFromUrl(info.url);
+        if (urlEk.ekey) ekeyFinal = urlEk.ekey;
+    }
+    if (!ekeyFinal && rawResp) {
+        const extraEk = kwExtractEkeyDeep(rawResp);
+        if (extraEk.ekey) ekeyFinal = extraEk.ekey;
+        else if (extraEk.album_id) ekeyFinal = extraEk.album_id;
+    }
+    info.ekey = ekeyFinal;
+    return info;
+}
+
+async function kwGetContentLength(url) {
+    try {
+        const resp = await kwHttpFetch(url, { method: 'HEAD', timeout: 8000 });
+        const cl = resp.headers['Content-Length'] || resp.headers['content-length'];
+        if (cl) return parseInt(cl, 10);
+    } catch (e) {}
+    return null;
+}
+
+async function kwGetExtra(rid) {
+    const result = {
+        lrc: '', lrc_line: [], album: '', album_id: '',
+        artist: '', song_name: '', album_pic: '', artist_pic: '',
+    };
+    if (!rid) return result;
+
+    const ridS = String(rid);
+    const h5Url = `http://m.kuwo.cn/newh5/singles/songinfoandlrc?musicId=${ridS}&httpsStatus=1`;
+
+    try {
+        const resp = await kwHttpFetch(h5Url, { headers: { 'User-Agent': KW_UA_WEB }, timeout: 8000 });
+        const d = resp.body;
+        const data = d && d.data ? d.data : {};
+        const songinfo = data.songinfo || {};
+        const lrclist = data.lrclist || [];
+
+        if (songinfo) {
+            result.album = String(songinfo.album || '');
+            result.album_id = String(songinfo.albumId || '');
+            result.artist = String(songinfo.artist || '');
+            result.song_name = String(songinfo.songName || '');
+        }
+
+        if (Array.isArray(lrclist) && lrclist.length) {
+            result.lrc_line = lrclist;
+            const lines = [];
+            for (const row of lrclist) {
+                if (typeof row !== 'object') continue;
+                const tm = parseFloat(row.time || '0') || 0;
+                const mm = Math.floor(tm / 60);
+                const ss = tm - mm * 60;
+                const lyric = row.lineLyric || row.lyric || '';
+                lines.push(`[${String(mm).padStart(2,'0')}:${ss.toFixed(2).padStart(5,'0')}]${lyric}`);
+            }
+            result.lrc = lines.join('\n');
+        }
+
+        const picRaw = String(songinfo.pic || '').trim();
+        if (picRaw) {
+            let u = picRaw;
+            if (u.startsWith('//')) u = 'https:' + u;
+            if (!u.startsWith('http')) u = 'https://img1.kwcdn.kuwo.cn' + (u.startsWith('/') ? '' : '/') + u;
+            result.album_pic = u;
+        }
+
+        const artistId = String(songinfo.artistId || '0');
+        if (artistId && artistId !== '0') {
+            const a = artistId.length >= 2 ? artistId[artistId.length - 2] : '0';
+            const b = artistId.length >= 1 ? artistId[artistId.length - 1] : '0';
+            result.artist_pic = `https://img1.kwcdn.kuwo.cn/star/starheads/500/${a}/${b}/${artistId}.jpg`;
+        } else if (picRaw) {
+            result.artist_pic = result.album_pic;
+        }
+    } catch (e) {}
+
+    return result;
+}
+
+async function kwGetUrlLocal(rid, quality, durationSec) {
+    const localQ = KW_PLUGIN_TO_LOCAL[quality] || kwResolveQuality(quality);
+    if (!KW_QUALITIES[localQ]) throw new Error(`酷我不支持音质: ${quality}`);
+
+    const cacheKey = `${rid}:${localQ}`;
+    const cached = kwUrlCache.get(cacheKey);
+    if (cached && Date.now() - cached.ts < KW_CACHE_TTL) {
+        return cached.value;
+    }
+
+    const cfg = KW_QUALITIES[localQ];
+    const isHighEnd = KW_HIGH_END.has(localQ);
+    const wantLossless = KW_LOSSLESS_PLUS.has(localQ);
+    const strictHighEnd = KW_LOCAL_CONFIG.strictHighEnd;
+
+    let bestResult = null;
+    let bestEkeyResult = null;
+    let extraLoaded = null;
+
+    const loadExtraOnce = async () => {
+        if (extraLoaded === null) {
+            try { extraLoaded = await kwGetExtra(rid); } catch (e) { extraLoaded = {}; }
+        }
+        return extraLoaded;
+    };
+
+    const finalize = async (resCh) => {
+        if (!resCh) return null;
+        const [res, chName] = resCh;
+        const extra = await loadExtraOnce();
+        if (extra) {
+            for (const [k, v] of Object.entries(extra)) {
+                if (res[k] === undefined) res[k] = v;
+            }
+        }
+        res.channel = chName;
+        kwUrlCache.set(cacheKey, { value: res, ts: Date.now() });
+        return res;
+    };
+
+    let chain = KW_BR_CHAIN[localQ];
+    if (!chain) {
+        if (['atmos_plus','sur'].includes(localQ)) chain = KW_BR_CHAIN.zpga || [];
+        else if (localQ === 'jymaster') chain = KW_BR_CHAIN.zp || [];
+        else if (localQ === 'hifi') chain = KW_BR_CHAIN.hires || [];
+        else chain = [cfg.br];
+    }
+
+    const stagePlan = (brIdx) => {
+        if (isHighEnd && brIdx === 0) {
+            return [
+                ['premium', KW_CHANNELS_PREMIUM, true],
+                ['stable', KW_CHANNELS_STABLE, false],
+                ['fallback', KW_CHANNELS_FALLBACK, false],
+            ];
+        }
+        return [
+            ['stable', KW_CHANNELS_STABLE, false],
+            ['fallback', KW_CHANNELS_FALLBACK, false],
+        ];
+    };
+
+    for (let idx = 0; idx < chain.length; idx++) {
+        const brEntry = chain[idx];
+        const { br: brStr, format: brFmt } = kwParseBrEntry(brEntry, cfg.format);
+        const qCfg = { ...cfg, br: brStr, format: brFmt };
+        const baseStrict = strictHighEnd && isHighEnd && idx === 0;
+
+        for (const [stageName, stageChannels, stageIsPremium] of stagePlan(idx)) {
+            const doStrict = baseStrict && stageIsPremium;
+
+            for (const ch of stageChannels) {
+                let info;
+                try {
+                    info = await kwTryChannel(ch, rid, qCfg);
+                } catch (e) { info = null; }
+                if (!info) continue;
+                if (String(info.br) === '6') continue;
+
+                const fmt = kwNormalizeFmt(info.format);
+                if (wantLossless && !KW_LOSSLESS_FMTS.has(fmt)) continue;
+
+                const result = {
+                    url: info.url, format: fmt, br: info.br,
+                    br_req: brStr, ekey: info.ekey || '', stage: stageName,
+                };
+
+                if (doStrict) {
+                    const wantFmt = kwNormalizeFmt(qCfg.format);
+                    if (KW_ENCRYPTED_FMTS.has(wantFmt) && !KW_ENCRYPTED_FMTS.has(fmt)) {
+                        if (!bestResult) bestResult = [result, ch.name];
+                        continue;
+                    }
+
+                    let brVal = null;
+                    try {
+                        const brRaw = info.br;
+                        if (typeof brRaw === 'string' && brRaw.toLowerCase().endsWith('k')) {
+                            brVal = parseFloat(brRaw.slice(0, -1));
+                        } else if (brRaw != null) {
+                            brVal = parseFloat(String(brRaw).replace(/[kK]/g, ''));
+                        }
+                    } catch (e) {}
+                    if (brVal != null && brVal < (qCfg.min_kbps || 0)) {
+                        if (!bestResult) bestResult = [result, ch.name];
+                        continue;
+                    }
+
+                    if (durationSec && durationSec > 0) {
+                        const cl = await kwGetContentLength(info.url);
+                        if (cl) {
+                            result.content_length = cl;
+                            const estKbps = (cl * 8) / 1000 / durationSec;
+                            result.estimated_kbps_by_head = Math.round(estKbps * 10) / 10;
+                            if (estKbps < (qCfg.min_kbps || 0)) {
+                                if (!bestResult) bestResult = [result, ch.name];
+                                continue;
+                            }
+                        }
+                    }
+                }
+
+                if (result.ekey) {
+                    if (!bestEkeyResult) {
+                        bestEkeyResult = [result, ch.name];
+                        if (stageIsPremium && KW_ENCRYPTED_FMTS.has(fmt)) {
+                            return finalize([result, ch.name]);
+                        }
+                    }
+                }
+                if (!bestResult) bestResult = [result, ch.name];
+            }
+        }
+
+        if (bestEkeyResult) return finalize(bestEkeyResult);
+        if (bestResult) return finalize(bestResult);
+    }
+
+    if (bestResult) return finalize(bestResult);
+    return null;
+}
+
+// -------------------- 网络接口 --------------------
+async function fetchIp() {
+    try {
+        const r = await httpFetch(buildUrl('primary', 'ip'), { timeout: 3000 });
+        if (r.body?.ip) {
+            userIp = r.body.ip;
+            userToken = generateToken(userIp);
+        }
+    } catch (e) {}
+}
+
+async function getWyChkszUrl(id, quality) {
+    const level = CHKSZ_NETEASE_LEVEL_MAP[quality];
+    if (!level) throw new Error('chksz不支持该品质');
+    const url = `https://${URL_CONFIG.domains.chkszNew}${URL_CONFIG.paths.chkszNetease}?id=${id}&level=${level}&apikey=${encodeURIComponent(CHKSZ_CONFIG.apikey)}`;
+    const resp = await httpFetch(url, { headers: { 'User-Agent': 'LX-Music-Mobile' }, timeout: 8000, noAuth: true });
+    if (resp.statusCode !== 200 || resp.body.code !== 200 || !resp.body.data?.url) {
+        throw new Error(`chksz网易失败(${resp.statusCode}): ${resp.body?.msg || '未返回url'}`);
+    }
+    return { url: resp.body.data.url, lyric: null, cover: resp.body.data.picUrl || null };
+}
+
+async function getTxChkszUrl(musicInfo, quality) {
+    const size = CHKSZ_QQ_SIZE_MAP[quality];
+    if (!size) throw new Error('chksz不支持该品质');
+    const mid = musicInfo.songmid || musicInfo.id;
+    if (!mid) throw new Error('缺少QQ mid');
+    const url = `https://${URL_CONFIG.domains.chkszNew}${URL_CONFIG.paths.chkszQQ}?mid=${mid}&size=${size}&type=json&apikey=${encodeURIComponent(CHKSZ_CONFIG.apikey)}`;
+    const resp = await httpFetch(url, { headers: { 'User-Agent': 'LX-Music-Mobile' }, timeout: 8000, noAuth: true });
+    if (resp.statusCode !== 200 || resp.body.code !== 200 || !resp.body.url) {
+        throw new Error(`chksz QQ失败(${resp.statusCode}): ${resp.body?.msg || '未返回url'}`);
+    }
+    return { url: resp.body.url, lyric: resp.body.lrc || null, cover: resp.body.cover || null };
+}
+
+async function getWyGDUrl(id, q) {
+    const br = GD_BR_MAP[q] || '320';
+    const url = buildUrl('gdStudio', 'gdApi', `&${URL_CONFIG.gdParams}&types=url&source=netease&id=${id}&br=${br}`);
+    let resp = await httpFetch(url, { headers: { 'User-Agent': 'LX-Music-Mobile' }, timeout: 8000, noAuth: true });
+    if (q === 'hires' && (resp.statusCode !== 200 || !resp.body.url)) {
+        const fallbackUrl = buildUrl('gdStudio', 'gdApi', `&${URL_CONFIG.gdParams}&types=url&source=netease&id=${id}&br=740`);
+        resp = await httpFetch(fallbackUrl, { headers: { 'User-Agent': 'LX-Music-Mobile' }, timeout: 8000, noAuth: true });
+    }
+    if (resp.statusCode !== 200 || !resp.body.url) {
+        throw new Error(`GD接口状态${resp.statusCode}，未返回音频`);
+    }
+    return { url: resp.body.url, lyric: null, cover: null };
+}
+
+// 自建后端接口（通用）
+async function getUrlFromBackend(source, musicInfo, quality) {
+    const backendSource = SOURCE_MAP[source] || source;
+    const baseUrl = buildUrl('primary', 'backend');
+    const params = {};
+    if (backendSource === 'kg') {
+        const types = musicInfo._types || {};
+        params.source = 'kg';
+        params.quality = quality || '';
+        params.songmid = musicInfo.songmid || musicInfo.id || '';
+        params.albumId = musicInfo.albumId || '';
+        params.mainHash = musicInfo.hash || '';
+        if (types[quality]?.hash) params.hash = types[quality].hash;
+    } else {
+        params.source = backendSource;
+        params.name = musicInfo.name || '';
+        params.singer = musicInfo.singer || '';
+        params.songmid = musicInfo.songmid || musicInfo.id || '';
+        params.interval = musicInfo.interval || '';
+        params.albumName = musicInfo.albumName || musicInfo.album || '';
+        params.quality = quality || '';
+    }
+    const query = Object.keys(params).map(k => `${encodeURIComponent(k)}=${encodeURIComponent(params[k])}`).join('&');
+    const url = `${baseUrl}?${query}`;
+    const resp = await httpFetch(url, { method: 'GET', timeout: 8000 });
+
+    if (resp.statusCode === 403) {
+        backendAggBlocked = true;
+        throw new Error('后端聚合接口返回403，已屏蔽');
+    }
+
+    if (resp.statusCode !== 200) throw new Error(`后端接口状态${resp.statusCode}`);
+
+    const data = resp.body;
+    if (data.code !== 200) throw new Error(data.msg || '后端无可用链接');
+
+    // 汽水音乐专用分支 —— 抖音加密流
+    if (backendSource === 'qs') {
+        const d = data.data || {};
+        let streamUrl = d.url || '';
+
+        if (streamUrl && d.key && !/[?&]key=/.test(streamUrl)) {
+            streamUrl += (streamUrl.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(d.key);
+        }
+
+        if (!streamUrl) streamUrl = d.source_url || '';
+        if (!streamUrl) throw new Error('汽水后端未返回流媒体链接');
+
+        return {
+            url: streamUrl,
+            lyric: d.lyric || d.lrc || null,
+            cover: d.cover || d.picture || d.album_pic || null,
+        };
+    }
+
+    if (!data.url) throw new Error(data.msg || '后端无可用链接');
+    const finalUrl = processKwEncryptedUrl(data, backendSource);
+    return { url: finalUrl, lyric: data.lrc || null, cover: data.picture || null };
+}
+
+// -------------------- 核心：获取音乐URL --------------------
+async function fetchMusicUrl(source, musicInfo, quality) {
+    const id = musicInfo.hash ?? musicInfo.songmid ?? musicInfo.id;
+    if (!id) throw new Error('缺少 songId');
+    let actualQuality = mapQuality(quality, MUSIC_QUALITIES[source] || ['128k','320k','flac']);
+
+    if (source === 'kw' && !KW_DECRYPT_PROXY.allowEncryptedLossless) {
+        actualQuality = mapQuality(quality, ['128k','320k','flac']);
+    }
+
+    let result = { url: '', lyric: null, cover: null };
+    let lastError = '';
+    const chkszEnabled = !!(CHKSZ_CONFIG.apikey && CHKSZ_CONFIG.apikey.trim());
+
+    // --- 酷我音乐 ---
+    if (source === 'kw') {
+        if (KW_LOCAL_CONFIG.enabled) {
+            try {
+                const durationSec = musicInfo.interval ? parseInt(musicInfo.interval, 10) : null;
+                const kwResult = await kwGetUrlLocal(id, actualQuality, durationSec);
+                if (kwResult && kwResult.url) {
+                    let finalUrl = kwResult.url;
+                    if (KW_DECRYPT_PROXY.allowEncryptedLossless && KW_ENCRYPTED_FMTS.has(kwResult.format)) {
+                        finalUrl = processKwEncryptedUrl({ url: kwResult.url, ekey: kwResult.ekey }, 'kw');
+                    }
+                    result = { url: finalUrl, lyric: kwResult.lrc || null, cover: kwResult.album_pic || null };
+                }
+            } catch (e) {
+                lastError = `酷我本地直连失败: ${e.message}`;
+            }
+        }
+
+        if (!result.url && KW_LOCAL_CONFIG.fallbackToBackend && !backendAggBlocked) {
+            try {
+                result = await getUrlFromBackend('kw', musicInfo, actualQuality);
+            } catch (e) {
+                lastError = `后端聚合失败: ${e.message}`;
+            }
+        }
+    }
+    // --- 网易云音乐 ---
+    else if (source === 'wy') {
+        if (chkszEnabled && CHKSZ_CONFIG.enableNetease) {
+            try {
+                result = await getWyChkszUrl(id, actualQuality);
+            } catch (e) {
+                lastError = `chksz网易失败: ${e.message}`;
+            }
+        }
+
+        if (!result.url && !backendAggBlocked) {
+            try {
+                result = await getUrlFromBackend('wy', musicInfo, actualQuality);
+            } catch (e) {
+                lastError = `后端聚合失败: ${e.message}`;
+            }
+        }
+
+        if (!result.url && GD_SUPPORTED_QUALITIES.has(actualQuality)) {
+            try {
+                result = await getWyGDUrl(id, actualQuality);
+            } catch (e) {
+                lastError = `GD接口失败: ${e.message}`;
+            }
+        }
+    }
+    // --- QQ 音乐 ---
+    else if (source === 'tx') {
+        if (chkszEnabled && CHKSZ_CONFIG.enableQQ) {
+            try {
+                result = await getTxChkszUrl(musicInfo, actualQuality);
+            } catch (e) { lastError = `chksz QQ失败: ${e.message}`; }
+        }
+
+        if (!result.url) {
+            try {
+                result = await getUrlFromBackend(source, musicInfo, actualQuality);
+            } catch (e) { lastError = `后端失败: ${e.message}`; }
+        }
+    }
+    // --- 汽水音乐 ---
+    else if (source === 'qs') {
+        try {
+            result = await getUrlFromBackend('qs', musicInfo, actualQuality);
+        } catch (e) {
+            lastError = `汽水后端失败: ${e.message}`;
+        }
+    }
+    // --- 其他平台 ---
+    else {
+        try {
+            result = await getUrlFromBackend(source, musicInfo, actualQuality);
+        } catch (e) { lastError = `后端失败: ${e.message}`; }
+    }
+
+    extraCache.set(id, { lyric: result.lyric, cover: result.cover });
+
+    const trimmedUrl = typeof result.url === 'string' ? result.url.trim() : '';
+    if (typeof result.url !== 'string' || trimmedUrl.length < 1 || !trimmedUrl.match(/^https?:\/\//i)) {
+        throw new Error(lastError || '获取播放链接失败');
+    }
+
+    return trimmedUrl;
+}
+
+// -------------------- 更新检查 --------------------
+async function checkUpdate() {
+    const versionUrls = [
+        buildUrl('primary', 'version') + '?ver=' + encodeURIComponent(SCRIPT_VERSION),
+        buildUrl('fallback', 'version') + '?ver=' + encodeURIComponent(SCRIPT_VERSION)
+    ];
+    try {
+        const resp = await Promise.any(versionUrls.map(u => httpFetch(u, { timeout: 5000 })));
+        if (resp.statusCode === 200 && resp.body && resp.body.update_url) {
+            send(EVENT_NAMES.updateAlert, {
+                log: resp.body.changelog || resp.body.message || `发现新版本 ${resp.body.version || ''}`,
+                updateUrl: resp.body.update_url
+            });
+        }
+    } catch (e) {}
+}
+
+// -------------------- 事件处理 --------------------
+on(EVENT_NAMES.request, async ({ action, source, info }) => {
+    if (!source || !MUSIC_QUALITIES[source]) throw new Error(`不支持的音乐源: ${source}`);
+
+    if (action === 'musicUrl') {
+        if (!info?.musicInfo || !info.type) throw new Error('参数不完整');
+        return fetchMusicUrl(source, info.musicInfo, info.type);
+    }
+
+    const id = info?.musicInfo?.hash ?? info?.musicInfo?.songmid ?? info?.musicInfo?.id;
+    const cached = extraCache.get(id);
+    if (action === 'lyric') return cached?.lyric ? { lyric: cached.lyric, tlyric: '' } : null;
+    if (action === 'pic') return cached?.cover || null;
+    throw new Error(`不支持的操作: ${action}`);
+});
+
+// -------------------- 启动 --------------------
+(async () => {
+    deviceId = generateDeviceId();
+    clientHeader = buildClientHeader();
+    userToken = generateToken(null);
+    availablePlatforms = ['wy', 'tx', 'kg', 'kw', 'mg', 'qs'];
+    const sources = {};
+    availablePlatforms.forEach(p => { sources[p] = { name: PLATFORM_NAMES[p], type: 'music', actions: ['musicUrl', 'lyric', 'pic'], qualitys: MUSIC_QUALITIES[p] }; });
+    send(EVENT_NAMES.inited, { openDevMode: false, status: true, sources });
+    fetchIp();
+    checkUpdate();
+})();
