@@ -114,29 +114,27 @@ enum class PlayerFx(val label: String) {
 }
 
 /** 播放页 UI 风格。
- *  - NETEASE（默认）：复刻网易云，左封面 + 右歌词，直接铺在模糊专辑背景上；
- *  - RNPN：Apple Music 风格（一比一复刻 betterncm-mac 的 RNPN 歌词窗）——浅色暖调模糊背景，
- *    左栏封面 / 歌名 / 歌手 / 进度 / 控制，右栏逐行缩放淡出歌词，当前行加粗放大。
+ *  - NETEASE（默认，界面上叫「标准」）：左封面 + 右歌词，直接铺在模糊专辑背景上；
+ *  - RNPN：Apple Music 风格——封面取色的流体背景，左栏封面 / 歌名 / 歌手 / 进度 /
+ *    上一首·播放暂停·下一首·喜欢，右栏逐行缩放的逐字歌词，当前行加粗放大。
  *  老存档没有该字段时取默认 NETEASE，不会重置其它设置。 */
 @Serializable
 enum class PlayerUi(val label: String) {
-    NETEASE("复刻网易"),
+    NETEASE("标准"),
     RNPN("Apple Music"),
 }
 
 /** 全屏歌词特效（参考 YuMusic / QQ 音乐）：
  *  - NONE：常规两栏歌词；
  *  - LIGHT（光感）：全屏居中三行歌词 + 柔和暗角，逐句淡入（原「商籁」）；
- *  - STARSEA（星海）：全屏深蓝星海背景 + 蓝白辉光歌词；
- *  - CINEMA（胶片）：歌手写真做背景（肯·伯恩斯缓慢推近）+ 电影黑边 + 颗粒，底部字幕式歌词。
- *  已下线的「极光 AURORA」「霓虹 NEON」由 [FullscreenLyricFxSerializer] 兜底降级为光感，
- *  老存档不会因为枚举值消失而整份设置被重置。 */
+ *  - STARSEA（星海）：全屏深蓝星海背景 + 蓝白辉光歌词。
+ *  已下线的「极光 AURORA」「霓虹 NEON」「胶片 CINEMA」由 [FullscreenLyricFxSerializer]
+ *  兜底降级为光感，老存档不会因为枚举值消失而整份设置被重置。 */
 @Serializable(with = FullscreenLyricFxSerializer::class)
 enum class FullscreenLyricFx(val label: String) {
     NONE("关闭"),
     LIGHT("光感"),
     STARSEA("星海"),
-    CINEMA("胶片"),
 }
 
 /** 手写枚举序列化器：按名字存，读取时把历史/已下线的值映射到现存项。 */
@@ -151,7 +149,7 @@ object FullscreenLyricFxSerializer : KSerializer<FullscreenLyricFx> {
     override fun deserialize(decoder: Decoder): FullscreenLyricFx {
         return when (val raw = decoder.decodeString()) {
             // 已下线或历史命名 → 光感
-            "SONNET", "AURORA", "NEON" -> FullscreenLyricFx.LIGHT
+            "SONNET", "AURORA", "NEON", "CINEMA" -> FullscreenLyricFx.LIGHT
             else -> FullscreenLyricFx.entries.firstOrNull { it.name == raw }
                 ?: FullscreenLyricFx.NONE
         }

@@ -687,14 +687,27 @@ class PlaybackController(
         playAt(nextIdx)
     }
 
+    /**
+     * 上一首：始终切换到队列里的上一首（队首回绕到队尾）。
+     *
+     * 早期版本学 Apple/Spotify 的「播放超过 3 秒先回到开头」，实机反馈是「上一首功能不可以」——
+     * 播放中按了只是当前歌回头，暂停时更是毫无反应。遥控器场景要的就是切歌，因此去掉重启逻辑：
+     * 只有算出来的「上一首」就是当前首（单曲队列 / 随机落回自己）时才等价重播。
+     */
     fun prev() {
         val s = _state.value
         if (s.queue.isEmpty()) return
-        if (player.currentPosition > 3000) { player.seekTo(0); return }
         val prevIdx = when {
             s.shuffle -> if (s.queue.size <= 1) s.index else randomOther(s.index, s.queue.size)
             s.index - 1 >= 0 -> s.index - 1
             else -> s.queue.size - 1
+        }
+        // 单曲队列 / 随机落回自己：直接回开头重播，不必重新解析播放地址。
+        if (prevIdx == s.index && player.mediaItemCount > 0) {
+            player.seekTo(0)
+            player.play()
+            _state.value = _state.value.copy(positionMs = 0)
+            return
         }
         playAt(prevIdx)
     }

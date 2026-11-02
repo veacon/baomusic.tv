@@ -106,10 +106,6 @@ class AppContainer(val appContext: Context) {
     val coverCache: com.baogemusic.tv.data.store.CoverCache by lazy {
         com.baogemusic.tv.data.store.CoverCache(appContext)
     }
-    /** 歌手写真（「胶片」全屏歌词的背景图），来自网易云歌手页，按歌手名缓存。 */
-    val artistPhotos: com.baogemusic.tv.data.store.ArtistPhotoStore by lazy {
-        com.baogemusic.tv.data.store.ArtistPhotoStore(appContext, httpClient)
-    }
     val downloadStore: com.baogemusic.tv.data.store.DownloadStore by lazy {
         com.baogemusic.tv.data.store.DownloadStore(appContext)
     }

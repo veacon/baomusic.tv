@@ -20,6 +20,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -37,6 +38,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FontDownload
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Fullscreen
@@ -144,12 +146,17 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
     if (wantsFocus) tryRequestFocus(playFocus)
   }
 
+  // Apple Music（RNPN）模式：左栏控制常驻，不存在「控件隐藏后唤出」的场景 —— auto-hide 的
+  // 按键拦截器反而会吞掉遥控器第一次按键（焦点还挂在未挂载的 playFocus 上），故该模式整体关闭。
+  val rnpnMode = settings.playerUi == com.baogemusic.tv.data.store.PlayerUi.RNPN &&
+      settings.fullscreenLyricFx == FullscreenLyricFx.NONE
+
   // 播放控件自动隐藏：空闲 5 秒隐藏进度条 + 控制栏。隐藏后 Compose 内没有焦点，按键只会落到
   // Activity，所以在 Activity.dispatchKeyEvent 层拦截：方向键 / 确认键只负责唤出控件（吞掉该次
   // 按键，避免确认键误触暂停）；返回、菜单、媒体键照常放行。
   var controlsVisible by remember { mutableStateOf(true) }
   var idleTick by remember { mutableStateOf(0) }
-  val autoHideActive = settings.autoHidePlayerControls && wantsFocus
+  val autoHideActive = settings.autoHidePlayerControls && wantsFocus && !rnpnMode
   LaunchedEffect(autoHideActive, controlsVisible, idleTick) {
     if (!autoHideActive) {
       controlsVisible = true
@@ -191,9 +198,7 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
   }
 
   Box(modifier = modifier.fillMaxSize().background(AppColors.BgDeep)) {
-    // Apple Music（RNPN）模式自带浅色模糊背景，不用全局那层深色封面模糊。
-    val rnpnMode = settings.playerUi == com.baogemusic.tv.data.store.PlayerUi.RNPN &&
-        settings.fullscreenLyricFx == FullscreenLyricFx.NONE
+    // Apple Music（RNPN）模式自带流体背景，不用全局那层深色封面模糊。
     if (!rnpnMode) CoverBackdrop(picURL = track?.picURL)
 
     if (track == null) {
@@ -286,29 +291,29 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
       }
     }
 
-    // 右栏歌词面板；BetterLyrics 模式下标题信息已移到封面下方，故 showMeta=false 只放歌词。
+    // 右栏歌词面板。歌词**占满整个右栏**（与封面同高、Row 垂直居中），
+    // 因此歌词区中心 = 封面中心线 —— 当前句会与专辑封面中心对齐。
+    // 歌名/歌手/专辑覆盖在歌词区顶部（当前句在中心，不会被遮住）。
     val lyricPanel: @Composable (Modifier, Boolean) -> Unit = { m, showMeta ->
-      Column(modifier = m.fillMaxHeight()) {
+      Box(modifier = m.fillMaxHeight()) {
+        LyricPane(
+          lyrics,
+          state.positionMs,
+          lyricFontSizeSp = activeSp,
+          lyricAlignment = effectiveAlign,
+          lineFactor = lineFactor,
+          showTranslation = settings.showLyricTranslation,
+          singleLine = false,
+          fontFamily = lyricFont,
+          failureHint = (lyricStatus as? com.baogemusic.tv.playback.LyricStatus.Failed)?.message,
+          loading = lyricStatus is com.baogemusic.tv.playback.LyricStatus.Loading,
+          onRetry = { controller.retryLyrics() },
+          modifier = Modifier.fillMaxSize(),
+        )
         if (showMeta) {
-          trackMeta()
-          Spacer(Modifier.height(20.dp))
-        }
-        // 歌词区：填满剩余高度
-        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-          LyricPane(
-            lyrics,
-            state.positionMs,
-            lyricFontSizeSp = activeSp,
-            lyricAlignment = effectiveAlign,
-            lineFactor = lineFactor,
-            showTranslation = settings.showLyricTranslation,
-            singleLine = false,
-            fontFamily = lyricFont,
-            failureHint = (lyricStatus as? com.baogemusic.tv.playback.LyricStatus.Failed)?.message,
-            loading = lyricStatus is com.baogemusic.tv.playback.LyricStatus.Loading,
-            onRetry = { controller.retryLyrics() },
-            modifier = Modifier.fillMaxSize(),
-          )
+          Column(modifier = Modifier.fillMaxWidth()) {
+            trackMeta()
+          }
         }
       }
     }
@@ -335,15 +340,6 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
 
     // 全屏歌词特效：铺满整屏（含左上角歌名 / 歌手）；底部控件在需要时浮出覆盖其上。
     val fullscreenFx = settings.fullscreenLyricFx
-    // 「胶片」用歌手写真做背景：只在选中该特效时联网取一次（按歌手名缓存），切歌自动换图。
-    var artistPhoto by remember(track.id) { mutableStateOf<String?>(null) }
-    LaunchedEffect(fullscreenFx, track.id) {
-      artistPhoto = if (fullscreenFx == FullscreenLyricFx.CINEMA) {
-        appContainer.artistPhotos.photoFor(track)
-      } else {
-        null
-      }
-    }
     if (fullscreenFx != FullscreenLyricFx.NONE) {
       FullscreenLyricStage(
         fx = fullscreenFx,
@@ -355,8 +351,6 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
         fontFamily = lyricFont,
         trackName = track.name,
         artist = track.singer,
-        artistPhoto = artistPhoto,
-        coverPic = track.picURL,
         modifier = Modifier.fillMaxSize(),
       )
     }
@@ -370,7 +364,6 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
         positionMs = state.positionMs,
         durationMs = state.durationMs,
         isPlaying = state.isPlaying,
-        isShuffle = state.shuffle,
         isFaved = love.tracks.any { it.id == track.id },
         lyricFontSizeSp = activeSp,
         showTranslation = settings.showLyricTranslation,
@@ -378,10 +371,7 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
         onTogglePlay = { controller.togglePlay() },
         onPrev = { controller.prev() },
         onNext = { controller.next() },
-        onToggleShuffle = { controller.toggleShuffle() },
         onToggleFav = { showPicker = true },
-        onShowQueue = { showQueue = true },
-        onShowMore = { showEqDialog = true },
         onSeekTo = { controller.seekTo(it) },
         modifier = Modifier.fillMaxSize(),
       )
@@ -400,6 +390,9 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
           modifier = Modifier.fillMaxWidth().height(40.dp),
         )
       }
+      // 控件隐藏时释放空间：上方的歌词区（weight 1f）会吸收这块空间，波形条随之下移到
+      // 屏幕底部，不会在下方留下大片空白。歌词居中由 LyricPane 的稳定居中逻辑负责
+      // （按实测面板高度重新对齐，见 LyricPane 注释）。
       AnimatedVisibility(visible = controlsVisible) {
         Column {
           Spacer(Modifier.height(6.dp))
@@ -447,10 +440,30 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
                     fullscreenLyricFx = when (s.fullscreenLyricFx) {
                       FullscreenLyricFx.NONE -> FullscreenLyricFx.LIGHT
                       FullscreenLyricFx.LIGHT -> FullscreenLyricFx.STARSEA
-                      FullscreenLyricFx.STARSEA -> FullscreenLyricFx.CINEMA
-                      FullscreenLyricFx.CINEMA -> FullscreenLyricFx.NONE
+                      FullscreenLyricFx.STARSEA -> FullscreenLyricFx.NONE
                     },
                   )
+                }
+              }
+            },
+            onCycleFont = {
+              scope.launch {
+                appContainer.settingsStore.update { s ->
+                  s.copy(
+                    appFontFamily = when (s.appFontFamily) {
+                      com.baogemusic.tv.data.store.AppFontFamily.SYSTEM -> com.baogemusic.tv.data.store.AppFontFamily.MINGMEI
+                      com.baogemusic.tv.data.store.AppFontFamily.MINGMEI -> com.baogemusic.tv.data.store.AppFontFamily.XIAODOU
+                      com.baogemusic.tv.data.store.AppFontFamily.XIAODOU -> com.baogemusic.tv.data.store.AppFontFamily.CUSTOM
+                      com.baogemusic.tv.data.store.AppFontFamily.CUSTOM -> com.baogemusic.tv.data.store.AppFontFamily.SYSTEM
+                    },
+                  )
+                }
+              }
+            },
+            onSwitchAppleMusic = {
+              scope.launch {
+                appContainer.settingsStore.update { s ->
+                  s.copy(playerUi = com.baogemusic.tv.data.store.PlayerUi.RNPN)
                 }
               }
             },
@@ -794,6 +807,10 @@ private fun TransportBar(
   fullscreenLyricOn: Boolean = false,
   /** 切换全屏歌词特效（关闭 → 光感 → 星海 → 关闭）。 */
   onToggleFullscreenLyric: () -> Unit = {},
+  /** 点击「字」按钮：循环切换歌词/全局字体。 */
+  onCycleFont: () -> Unit = {},
+  /** 点击 Apple logo：切换到 Apple Music 播放页。 */
+  onSwitchAppleMusic: () -> Unit = {},
   playFocusRequester: FocusRequester? = null,
   progressFocusRequester: FocusRequester? = null,
 ) {
@@ -808,6 +825,8 @@ private fun TransportBar(
   val faveFocus = remember { FocusRequester() }
   val lyricsFocus = remember { FocusRequester() }
   val queueFocus = remember { FocusRequester() }
+  val fontFocus = remember { FocusRequester() }
+  val appleFocus = remember { FocusRequester() }
   // 播放页盖在主界面上，主界面的控件仍在下面参与焦点查找。交给系统按位置找的话，会找到被盖住的
   // 控件（比如推荐页迷你播放条的上一曲，#24），所以控制栏每个方向都写死。
   // 音质标签只在成功播放过后才有（第一首就失败时没有），两侧的跳转按有无标签切换。
@@ -922,6 +941,26 @@ private fun TransportBar(
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+      // 「字」：循环切换歌词/全局字体（系统默认 → 明媚向春天 → 小抖动侠情书 → 自定义）。
+      IconPill(
+        Icons.Filled.FontDownload,
+        focusRequester = fontFocus,
+        onClick = onCycleFont,
+        modifier = Modifier.focusProperties {
+          left = faveFocus
+          right = appleFocus
+        },
+      )
+      // Apple logo：一键切换到 Apple Music 播放页。
+      IconPill(
+        com.baogemusic.tv.ui.player.AppleIcons.AppleLogo,
+        focusRequester = appleFocus,
+        onClick = onSwitchAppleMusic,
+        modifier = Modifier.focusProperties {
+          left = fontFocus
+          right = lyricsFocus
+        },
+      )
       // 全屏歌词：关闭 → 光感 → 星海 → 关闭 循环切换。
       IconPill(
         if (fullscreenLyricOn) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen,
@@ -929,7 +968,7 @@ private fun TransportBar(
         focusRequester = lyricsFocus,
         onClick = onToggleFullscreenLyric,
         modifier = Modifier.focusProperties {
-          left = faveFocus
+          left = appleFocus
           right = queueFocus
         },
       )
@@ -1075,28 +1114,8 @@ private fun ProgressBar(
   }
 }
 
-/** 上下渐隐遮罩：滚进 / 滚出视野的歌词淡入淡出，避免被面板边缘硬切。用于歌词列表外层。 */
-private fun Modifier.lyricFadeEdges(fadeFraction: Float = 0.12f): Modifier = this
-  .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-  .drawWithContent {
-    drawContent()
-    val fade = size.height * fadeFraction
-    drawRect(
-      topLeft = Offset(0f, 0f),
-      size = Size(size.width, fade),
-      brush = Brush.verticalGradient(listOf(Color.Transparent, Color.Black), startY = 0f, endY = fade),
-      blendMode = BlendMode.DstIn,
-    )
-    drawRect(
-      topLeft = Offset(0f, size.height - fade),
-      size = Size(size.width, fade),
-      brush = Brush.verticalGradient(listOf(Color.Black, Color.Transparent), startY = 0f, endY = fade),
-      blendMode = BlendMode.DstIn,
-    )
-  }
-
 /** KTV 式逐字染色：已唱过的部分用高亮色覆盖（只在文字像素上着色，不会盖到背景）。 */
-private fun Modifier.lyricSweep(progress: () -> Float, color: Color): Modifier = this
+internal fun Modifier.lyricSweep(progress: () -> Float, color: Color): Modifier = this
   .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
   .drawWithContent {
     drawContent()
@@ -1182,176 +1201,83 @@ private fun LyricPane(
   }
   val active = LyricParser.activeIndex(positionMs / 1000.0, lyrics)
   val listState = rememberLazyListState()
-  // 实测面板高度，让当前行停在纵向约 1/3 处，而不是贴着顶部 padding——落点更接近主流播放器的观感。
-  var paneHeightPx by remember { mutableIntStateOf(0) }
-  LaunchedEffect(active, paneHeightPx) {
-    if (active < 0 || paneHeightPx <= 0) return@LaunchedEffect
-    val anchor = paneHeightPx * 0.32f
-    // 目标行已在视野内时按固定缓动平移（比 animateScrollToItem 的 spring 更稳、不回弹）；
-    // 不在视野内（切歌 / 长跳转）才用 animateScrollToItem 直接跳过去。
-    val visible = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == active }
-    if (visible != null) {
-      runCatching { listState.animateScrollBy(visible.offset - anchor, tween(420, easing = FastOutSlowInEasing)) }
-    } else {
-      runCatching { listState.animateScrollToItem(active, scrollOffset = -anchor.roundToInt()) }
-    }
-  }
 
-  // KTV 逐字推进：positionMs 每秒才 tick 一次，这里用 Animatable 线性补到目标值，
-  // 视觉上是连续扫过而不是一秒一跳。
-  val sweep = remember { Animatable(0f) }
-  val positionSec = positionMs / 1000.0
-  var lastActive by remember { mutableIntStateOf(-1) }
-  LaunchedEffect(active, positionSec) {
-    if (active != lastActive) {
-      lastActive = active
-      sweep.snapTo(0f)
-    }
-    val line = lyrics.getOrNull(active)
-    val next = lyrics.getOrNull(active + 1)
-    val target = if (line == null) {
-      0f
-    } else {
-      val start = line.time
-      val end = next?.time
-      // 纯文本歌词（无时间轴）或算不出时长 → 整行直接点亮，不做扫描。
-      if (start < 0 || end == null || end <= start) 1f
-      else ((positionSec - start) / (end - start)).coerceIn(0.0, 1.0).toFloat()
-    }
-    sweep.animateTo(target, tween(durationMillis = 900, easing = LinearEasing))
-  }
+  // ---- 当前行垂直居中 ----
+  // 上游（SincereXing/walkman-tv）用的是 scrollOffset = -160，含义是「当前行贴在距顶约 160dp」，
+  // 也就是**上游本身不居中**。这里改为居中，关键点是 scrollOffset 必须是**正数**：
+  // 「item 顶部距列表顶部的像素偏移」。早前写成负数 -anchor 会被列表 clamp 到顶部，
+  // 表现为"当前句完全看不见"；正数 +anchor 才是把行顶放到面板半高处（行中心即面板中心）。
+  BoxWithConstraints(modifier = modifier) {
+    val paneHPx = constraints.maxHeight
 
-  // 神光模式：一屏一句，切句时淡入 + 轻微上移，旧句淡出 + 上移
-  if (singleLine) {
-    Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-      androidx.compose.animation.AnimatedContent(
-        targetState = active,
-        transitionSpec = {
-          (androidx.compose.animation.fadeIn(tween(320)) +
-            androidx.compose.animation.slideInVertically(tween(320)) { it / 4 }) togetherWith
-            (androidx.compose.animation.fadeOut(tween(220)) +
-              androidx.compose.animation.slideOutVertically(tween(220)) { -it / 4 })
-        },
-        label = "singleLyric",
-      ) { idx ->
-        val line = lyrics.getOrNull(idx)
-        Column(
-          horizontalAlignment = Alignment.CenterHorizontally,
-          modifier = Modifier.fillMaxWidth(),
-        ) {
-          Text(
-            line?.text ?: "",
-            color = AppColors.TextPrimary,
-            fontFamily = fontFamily,
-            fontSize = lyricFontSizeSp.sp,
-            lineHeight = (lyricFontSizeSp * lineFactor).sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-              .fillMaxWidth()
-              .lyricSweep({ sweep.value }, AppColors.LyricActive),
-          )
-          line?.translation?.takeIf { showTranslation }?.let { t ->
-            Spacer(Modifier.height(8.dp))
-            Text(
-              t,
-              color = AppColors.LyricActive.copy(alpha = 0.72f),
-              fontFamily = fontFamily,
-              fontSize = com.baogemusic.tv.data.store.LyricScaleRange.translationOf(lyricFontSizeSp).sp,
-              lineHeight = (com.baogemusic.tv.data.store.LyricScaleRange.translationOf(lyricFontSizeSp) * lineFactor).sp,
-              textAlign = TextAlign.Center,
-              modifier = Modifier.fillMaxWidth(),
-            )
-          }
-        }
+    // ---- 当前行垂直居中（单阶段实测定位）----
+    // 之前失败的两种做法，都在这里废弃：
+    //  ① 上游 scrollOffset = -160 → 当前行贴顶（上游本就不居中）；
+    //  ② animateScrollToItem(scrollOffset) + delay + animateScrollBy 两阶段 → scrollOffset 与
+    //     contentPadding 交互语义不确定，且精修读到的是动画中间态 offset，目标算错 → 乱跳。
+    // 现在只用「确保可见 + 实测 offset + 一次性 animateScrollBy」：scrollBy 正值=内容向下滚=
+    // 行上移，方向语义明确，无叠加动画，收敛到行中心=面板中心。
+    LaunchedEffect(active, paneHPx) {
+      if (active < 0) return@LaunchedEffect
+      if (listState.layoutInfo.visibleItemsInfo.none { it.index == active }) {
+        runCatching { listState.scrollToItem(active) }
+      }
+      val info = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == active }
+        ?: return@LaunchedEffect
+      // 目标：行顶 = (面板高 - 行高)/2 → 行中心即面板中心。
+      // 实测 info.offset 的坐标原点不含 contentPadding 顶部留白，导致当前行固定偏低两行；
+      // 这里把中心目标再上移两行（约 2 × 行高），补偿该偏差。
+      val target = (paneHPx - info.size) / 2f - info.size * 2f
+      val delta = info.offset - target
+      if (abs(delta) > 1f) {
+        runCatching { listState.animateScrollBy(delta, tween(320, easing = FastOutSlowInEasing)) }
       }
     }
-    return
-  }
 
-  val inactiveSp = com.baogemusic.tv.data.store.LyricScaleRange.inactiveOf(lyricFontSizeSp)
-  val translationSp = com.baogemusic.tv.data.store.LyricScaleRange.translationOf(lyricFontSizeSp)
-  val factor = lineFactor
-  // 行距倍率同时作用于「行内行高」和「行间留白」，倍率越大整块歌词越松。
-  val rowGap = (lyricFontSizeSp * (factor - 1f) * 0.75f).dp
+    // 项目设置：歌词对齐方式 + 歌词字体（上游没有这两项，这里补回来——纯渲染属性，
+    // 不影响上面的滚动定位稳定性）。
+    val textAlign = when (lyricAlignment) {
+      LyricAlignment.LEFT -> TextAlign.Start
+      LyricAlignment.CENTER -> TextAlign.Center
+      LyricAlignment.RIGHT -> TextAlign.End
+    }
+    val rowAlign = when (lyricAlignment) {
+      LyricAlignment.LEFT -> Alignment.Start
+      LyricAlignment.CENTER -> Alignment.CenterHorizontally
+      LyricAlignment.RIGHT -> Alignment.End
+    }
 
-  val textAlign = when (lyricAlignment) {
-    LyricAlignment.LEFT -> TextAlign.Start
-    LyricAlignment.CENTER -> TextAlign.Center
-    LyricAlignment.RIGHT -> TextAlign.End
-  }
-  val rowAlign = when (lyricAlignment) {
-    LyricAlignment.LEFT -> Alignment.Start
-    LyricAlignment.CENTER -> Alignment.CenterHorizontally
-    LyricAlignment.RIGHT -> Alignment.End
-  }
-  // 缩放锚点跟着对齐方式走，当前行放大时不会把文字推出面板边界。
-  val scaleOrigin = when (lyricAlignment) {
-    LyricAlignment.LEFT -> TransformOrigin(0f, 0.5f)
-    LyricAlignment.CENTER -> TransformOrigin(0.5f, 0.5f)
-    LyricAlignment.RIGHT -> TransformOrigin(1f, 0.5f)
-  }
-
-  val floatSpec = tween<Float>(durationMillis = 320, easing = FastOutSlowInEasing)
-  val colorSpec = tween<Color>(durationMillis = 320, easing = FastOutSlowInEasing)
-
-  Box(modifier = modifier.onSizeChanged { paneHeightPx = it.height }) {
     LazyColumn(
       state = listState,
-      modifier = Modifier.matchParentSize().lyricFadeEdges(),
-      verticalArrangement = Arrangement.spacedBy(rowGap),
+      modifier = Modifier.fillMaxSize(),
+      verticalArrangement = Arrangement.spacedBy(14.dp),
       horizontalAlignment = rowAlign,
-      contentPadding = PaddingValues(vertical = 72.dp),
+      contentPadding = PaddingValues(vertical = 80.dp),
     ) {
       itemsIndexed(lyrics) { i, line ->
         val isActive = i == active
         val distance = if (active >= 0) abs(i - active) else 0
-        val targetAlpha = if (isActive) 1f else (1f - distance * 0.18f).coerceAtLeast(0.25f)
-        // 逐行动画：切换当前行时透明度 / 缩放 / 颜色平滑过渡，而不是硬跳变。
-        val alpha by animateFloatAsState(targetValue = targetAlpha, animationSpec = floatSpec, label = "lyricAlpha")
-        val scale by animateFloatAsState(
-          targetValue = if (isActive) 1.06f else 1f,
-          animationSpec = floatSpec,
-          label = "lyricScale",
-        )
-        // 当前行底色压暗，已唱部分由 lyricSweep 用高亮色扫过 —— 标准 KTV 观感；
-        // 非当前行再暗一档，靠 alpha 距离衰减拉开层次。
-        val color by animateColorAsState(
-          targetValue = if (isActive) AppColors.TextSecondary else AppColors.TextMuted,
-          animationSpec = colorSpec,
-          label = "lyricColor",
-        )
-        Column(
-          horizontalAlignment = rowAlign,
-          modifier = Modifier.graphicsLayer {
-            this.alpha = alpha
-            scaleX = scale
-            scaleY = scale
-            transformOrigin = scaleOrigin
-          },
-        ) {
+        val a = if (isActive) 1f else (1f - distance * 0.22f).coerceAtLeast(0.18f)
+        Column(horizontalAlignment = rowAlign) {
           Text(
             line.text,
-            color = color,
+            color = if (isActive) AppColors.LyricActive else AppColors.TextSecondary,
             fontFamily = fontFamily,
-            fontSize = (if (isActive) lyricFontSizeSp else inactiveSp).sp,
-            // 显式行高：默认行高跟不上大字号，长歌词换行时上下两行会重叠（#21）。
-            lineHeight = ((if (isActive) lyricFontSizeSp else inactiveSp) * factor).sp,
+            fontSize = if (isActive) lyricFontSizeSp.sp else com.baogemusic.tv.data.store.LyricScaleRange.inactiveOf(lyricFontSizeSp).sp,
+            lineHeight = ((if (isActive) lyricFontSizeSp else com.baogemusic.tv.data.store.LyricScaleRange.inactiveOf(lyricFontSizeSp)) * 1.3f).sp,
             fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
             textAlign = textAlign,
-            modifier = Modifier
-              .fillMaxWidth()
-              .then(if (isActive) Modifier.lyricSweep({ sweep.value }, AppColors.LyricActive) else Modifier),
+            modifier = Modifier.alpha(a),
           )
           line.translation?.takeIf { showTranslation }?.let { t ->
             Text(
               t,
               color = if (isActive) AppColors.LyricActive.copy(alpha = 0.7f) else AppColors.TextMuted,
               fontFamily = fontFamily,
-              fontSize = translationSp.sp,
-              lineHeight = (translationSp * factor).sp,
+              fontSize = com.baogemusic.tv.data.store.LyricScaleRange.translationOf(lyricFontSizeSp).sp,
+              lineHeight = (com.baogemusic.tv.data.store.LyricScaleRange.translationOf(lyricFontSizeSp) * 1.3f).sp,
               textAlign = textAlign,
-              modifier = Modifier.fillMaxWidth(),
+              modifier = Modifier.alpha(a),
             )
           }
         }
@@ -1661,8 +1587,9 @@ private fun RippleBackdrop(
 }
 
 /**
- * 宇宙尘埃特效（参考 ParticleView）：大量细碎尘埃 / 星点在背景中缓慢上浮、明暗闪烁，
- * 中心叠一层极淡星云。粒子位置用固定随机种子生成，保证每帧稳定不抖动。纯 Compose Canvas 绘制。
+ * 宇宙尘埃特效（参考 ParticleView）：尘埃 / 星点由**专辑中心向外扩散**（不是满屏上浮），
+ * 边扩散边明暗闪烁，中心叠一层极淡星云。粒子参数用固定随机种子生成，保证每帧稳定不抖动。
+ * 纯 Compose Canvas 绘制；[DustBackdrop] 被包在封面容器里、与封面同心，所以"中心"就是专辑中心。
  */
 @Composable
 private fun DustBackdrop(
@@ -1676,7 +1603,8 @@ private fun DustBackdrop(
     initialValue = 0f,
     targetValue = 1f,
     animationSpec = infiniteRepeatable(
-      animation = tween(durationMillis = 12_000, easing = LinearEasing),
+      // 10s 一轮：比旧版（12s 且速度更小）快一档，扩散感更明显
+      animation = tween(durationMillis = 10_000, easing = LinearEasing),
     ),
     label = "dustTime",
   )
@@ -1685,17 +1613,17 @@ private fun DustBackdrop(
     animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
     label = "dustLevel",
   )
-  // 固定种子的粒子：x0, y0, 尺寸系数, 相位, 闪烁速度, 漂移系数
+  // 固定种子的粒子：角度, 起始半径, 尺寸系数, 相位, 闪烁速度, 径向速度
   val dots = remember {
     val rnd = kotlin.random.Random(2024)
-    List(110) {
+    List(120) {
       floatArrayOf(
         rnd.nextFloat(),
         rnd.nextFloat(),
         0.4f + rnd.nextFloat() * 1.8f,
         rnd.nextFloat(),
         0.4f + rnd.nextFloat() * 1.4f,
-        0.4f + rnd.nextFloat() * 0.9f,
+        0.22f + rnd.nextFloat() * 0.20f,
       )
     }
   }
@@ -1709,7 +1637,8 @@ private fun DustBackdrop(
     val base = size.minDimension
     if (base <= 0f) return@Canvas
     val center = Offset(w / 2f, h / 2f)
-    // 中心星云
+    val maxR = base * 0.62f
+    // 中心星云（就是专辑所在位置）
     val nebula = base * 0.52f
     drawCircle(
       brush = Brush.radialGradient(
@@ -1722,13 +1651,17 @@ private fun DustBackdrop(
       blendMode = BlendMode.Screen,
     )
     for (d in dots) {
-      // 缓慢上浮 + 轻微左右摆动
-      val yNorm = (((d[1] - t * 0.16f * d[5]) % 1f) + 1f) % 1f
-      val xNorm = (d[0] + sin(t * 2f * PI.toFloat() + d[3] * 6.283f) * 0.012f)
-      val px = xNorm * w
-      val py = yNorm * h
+      // 半径随时间增长：走完一轮从中心重新放出 → 视觉上是从专辑向外扩散的尘埃
+      val r = (d[1] + t * d[5]) % 1f
+      val ang = (d[0] + t * 0.22f * (d[3] - 0.5f)) * 2f * PI.toFloat()
+      val px = center.x + cos(ang) * r * maxR
+      val py = center.y + sin(ang) * r * maxR
+      // 出生淡入 + 接近边缘淡出，避免粒子"凭空出现/硬消失"
+      val born = (r / 0.10f).coerceIn(0f, 1f)
+      val fadeOut = ((1f - r) / 0.28f).coerceIn(0f, 1f)
       val twinkle = 0.35f + 0.65f * abs(sin((t * d[4] + d[3]) * 2f * PI.toFloat()))
-      val alpha = (twinkle * (0.45f + smooth * 0.35f)).coerceIn(0f, 1f)
+      val alpha = (twinkle * (0.45f + smooth * 0.35f) * born * fadeOut).coerceIn(0f, 1f)
+      if (alpha <= 0.01f) continue
       val radius = base * 0.0035f * d[2] * (0.7f + twinkle * 0.6f)
       drawCircle(color = glow.copy(alpha = alpha), radius = radius, center = Offset(px, py), blendMode = BlendMode.Screen)
       // 少量大颗粒带光晕
@@ -1806,22 +1739,17 @@ private fun FullscreenLyricStage(
   fontFamily: FontFamily?,
   trackName: String,
   artist: String,
-  artistPhoto: String? = null,
-  coverPic: String? = null,
   modifier: Modifier = Modifier,
 ) {
   val active = LyricParser.activeIndex(positionMs / 1000.0, lyrics)
   val prev = lyrics.getOrNull(active - 1)
   val next = lyrics.getOrNull(active + 1)
-  val cinema = fx == FullscreenLyricFx.CINEMA
   val activeColor = when (fx) {
     FullscreenLyricFx.STARSEA -> Color(0xFFC7E6FF)
-    FullscreenLyricFx.CINEMA -> Color.White
     else -> AppColors.LyricActive
   }
   val glowRadius = when (fx) {
     FullscreenLyricFx.STARSEA -> 34f
-    FullscreenLyricFx.CINEMA -> 26f
     else -> 20f
   }
 
@@ -1829,10 +1757,6 @@ private fun FullscreenLyricStage(
     // ---- 背景：铺满整屏 ----
     when (fx) {
       FullscreenLyricFx.STARSEA -> StarField(Modifier.fillMaxSize())
-      FullscreenLyricFx.CINEMA -> CinemaBackdrop(
-        photoUrl = artistPhoto ?: coverPic,
-        modifier = Modifier.fillMaxSize(),
-      )
       else -> {
         // 光感：径向暗角（中间透、四周压暗）+ 上下渐隐，突出中间歌词。
         Box(
@@ -1888,55 +1812,6 @@ private fun FullscreenLyricStage(
         fontSize = 18.sp,
         modifier = Modifier.align(Alignment.Center),
       )
-    } else if (cinema) {
-      // ---- 胶片：底部字幕式（只显示当前句 + 翻译）----
-      Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-          .align(Alignment.BottomCenter)
-          .fillMaxWidth()
-          .padding(start = 120.dp, end = 120.dp, bottom = 150.dp),
-      ) {
-        androidx.compose.animation.AnimatedContent(
-          targetState = active,
-          transitionSpec = {
-            androidx.compose.animation.fadeIn(tween(400)) togetherWith
-              androidx.compose.animation.fadeOut(tween(260))
-          },
-          label = "cinemaLyric",
-        ) { idx ->
-          val l = lyrics.getOrNull(idx)
-          Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-              l?.text ?: "",
-              color = activeColor,
-              fontSize = (fontSp * 0.92f).sp,
-              lineHeight = (fontSp * 0.92f * lineFactor).sp,
-              fontFamily = fontFamily,
-              fontWeight = FontWeight.Medium,
-              textAlign = TextAlign.Center,
-              style = androidx.compose.ui.text.TextStyle(
-                shadow = androidx.compose.ui.graphics.Shadow(
-                  color = Color.Black.copy(alpha = 0.85f),
-                  blurRadius = glowRadius,
-                ),
-              ),
-              modifier = Modifier.fillMaxWidth(),
-            )
-            l?.translation?.takeIf { showTranslation }?.let { t ->
-              Spacer(Modifier.height(8.dp))
-              Text(
-                t,
-                color = Color.White.copy(alpha = 0.72f),
-                fontSize = (fontSp * 0.5f).sp,
-                fontFamily = fontFamily,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-              )
-            }
-          }
-        }
-      }
     } else {
       // ---- 居中三行（光感 / 星海）----
       Column(
@@ -2044,112 +1919,6 @@ private fun StarField(modifier: Modifier = Modifier) {
         radius = radius,
         center = Offset(s[0] * size.width, yNorm * size.height),
         blendMode = BlendMode.Screen,
-      )
-    }
-  }
-}
-
-/**
- * 胶片：歌手写真（网易云艺人宣传照）做背景，配合缓慢推近的「肯·伯恩斯」镜头 + 上下电影黑边 +
- * 细颗粒 + 纵向暗角，歌词走底部字幕。
- *
- * [photoUrl] 是写真地址；没取到写真时调用方会退一步传专辑封面。刻意**不做模糊**——
- * 播放页根层已经有一层模糊封面了，再模糊一张大图在 1.5GB 内存的盒子上纯属浪费。
- * 两者都没有就落到纯黑底，保证任何情况下都能播放。
- */
-@Composable
-private fun CinemaBackdrop(
-  photoUrl: String?,
-  modifier: Modifier = Modifier,
-) {
-  val transition = rememberInfiniteTransition(label = "cinemaFx")
-  val t by transition.animateFloat(
-    initialValue = 0f,
-    targetValue = 1f,
-    animationSpec = infiniteRepeatable(animation = tween(durationMillis = 7_000, easing = LinearEasing)),
-    label = "cinemaTime",
-  )
-  // 肯·伯恩斯镜头：20 秒推到 1.08 倍再拉回，慢到几乎察觉不到，但有呼吸感。
-  val kenBurns by transition.animateFloat(
-    initialValue = 1f,
-    targetValue = 1.08f,
-    animationSpec = infiniteRepeatable(
-      animation = tween(durationMillis = 20_000, easing = LinearEasing),
-      repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
-    ),
-    label = "cinemaKenBurns",
-  )
-  val grain = remember {
-    val rnd = kotlin.random.Random(99)
-    List(90) { floatArrayOf(rnd.nextFloat(), rnd.nextFloat(), 0.4f + rnd.nextFloat() * 1.6f, rnd.nextFloat()) }
-  }
-
-  Box(modifier.fillMaxSize()) {
-    // ---- 底层：写真 / 模糊封面 / 纯黑 ----
-    if (!photoUrl.isNullOrBlank()) {
-      val context = androidx.compose.ui.platform.LocalContext.current
-      coil.compose.AsyncImage(
-        model = coil.request.ImageRequest.Builder(context)
-          .data(photoUrl)
-          .size(1280, 720)
-          .crossfade(700)
-          .build(),
-        contentDescription = null,
-        contentScale = ContentScale.Crop,
-        modifier = Modifier
-          .fillMaxSize()
-          .graphicsLayer {
-            scaleX = kenBurns
-            scaleY = kenBurns
-          },
-      )
-      // 压暗 + 底部加重：写真再亮，字幕也得看得清。
-      Box(
-        Modifier.fillMaxSize().background(
-          Brush.verticalGradient(
-            0f to Color.Black.copy(alpha = 0.58f),
-            0.34f to Color.Black.copy(alpha = 0.16f),
-            0.70f to Color.Black.copy(alpha = 0.48f),
-            1f to Color.Black.copy(alpha = 0.90f),
-          ),
-        ),
-      )
-      // 轻微冷调，更像电影调色
-      Box(
-        Modifier.fillMaxSize().background(
-          Brush.horizontalGradient(
-            listOf(Color(0xFF0A1420).copy(alpha = 0.18f), Color.Transparent, Color(0xFF160E0A).copy(alpha = 0.16f)),
-          ),
-        ),
-      )
-    } else {
-      Box(Modifier.fillMaxSize().background(Color(0xFF050506)))
-    }
-
-    // ---- 上层：颗粒 + 黑边 + 暗角（不画不透明底色，以免盖住写真）----
-    androidx.compose.foundation.Canvas(
-      modifier = Modifier
-        .fillMaxSize()
-        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen },
-    ) {
-      if (size.minDimension <= 0f) return@Canvas
-      for (g in grain) {
-        val a = (0.02f + 0.05f * abs(sin((t * g[2] + g[3]) * 2f * PI.toFloat()))).coerceIn(0f, 1f)
-        drawCircle(
-          color = Color.White.copy(alpha = a),
-          radius = g[2] * 1.3f,
-          center = Offset(g[0] * size.width, g[1] * size.height),
-        )
-      }
-      // 上下电影黑边
-      val bar = size.height * 0.10f
-      drawRect(Color.Black, topLeft = Offset(0f, 0f), size = Size(size.width, bar))
-      drawRect(Color.Black, topLeft = Offset(0f, size.height - bar), size = Size(size.width, bar))
-      // 纵向暗角
-      drawRect(
-        brush = Brush.verticalGradient(
-          listOf(Color.Black.copy(alpha = 0.30f), Color.Transparent, Color.Black.copy(alpha = 0.42f)),
-        ),
       )
     }
   }

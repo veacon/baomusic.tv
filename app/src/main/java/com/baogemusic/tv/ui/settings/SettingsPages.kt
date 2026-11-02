@@ -458,9 +458,9 @@ internal fun AppearancePage(
             HintText(
                 when (settings.playerUi) {
                     com.baogemusic.tv.data.store.PlayerUi.NETEASE ->
-                        "复刻网易云播放页：左侧大封面（可调唱片形状 / 大小）+ 右侧歌词，直接铺在模糊专辑背景上，底部是进度与播放控件。"
+                        "标准播放页：左侧大封面（可调唱片形状 / 大小）+ 右侧滚动歌词（当前句居中、逐字扫光），铺在模糊专辑背景上，底部是进度与播放控件。"
                     com.baogemusic.tv.data.store.PlayerUi.RNPN ->
-                        "Apple Music 风格（一比一复刻 betterncm-mac 的 RNPN 歌词窗）：浅色暖调模糊背景；左栏封面 / 歌名 / 歌手 / 进度 / 控制，右栏歌词逐行缩放淡出，当前行加粗放大。该模式下不显示底部控制栏与波形，控件都在左栏。"
+                        "Apple Music 风格：封面取色的流体渐变背景；左栏封面 / 歌名 / 歌手 / 进度，以及上一首 · 播放暂停 · 下一首 · 喜欢四个按钮；右栏逐行缩放的逐字歌词，当前行加粗放大。该模式下不显示底部控制栏与波形。"
                 },
             )
         }
@@ -475,7 +475,7 @@ internal fun AppearancePage(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            HintText("切换播放页里唱片和歌词谁在左、谁在右（默认「歌词左 · 唱片右」）。仅「复刻网易」布局生效。")
+            HintText("切换播放页里唱片和歌词谁在左、谁在右（默认「歌词左 · 唱片右」）。仅「标准」布局生效。")
         }
 
         Section("唱片") {
@@ -537,7 +537,7 @@ internal fun AppearancePage(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            HintText("光感：居中三行 + 柔和暗角；星海：深蓝星海 + 蓝白辉光；胶片：以歌手写真为背景（自动从网易云获取，配合缓慢推近的电影镜头）+ 黑边 + 颗粒 + 底部字幕。开启后播放页进入全屏歌词，左上角显示歌名与歌手，底部控制栏按键时浮出。")
+            HintText("光感：居中三行 + 柔和暗角；星海：深蓝星海 + 蓝白辉光。开启后播放页进入全屏歌词，左上角显示歌名与歌手，底部控制栏按键时浮出。")
         }
 
         Section("歌单列数") {
