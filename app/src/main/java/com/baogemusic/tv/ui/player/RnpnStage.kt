@@ -1,6 +1,7 @@
 package com.baogemusic.tv.ui.player
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -31,10 +32,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -89,7 +93,8 @@ import kotlin.math.sin
  * 布局与歌词排布参考 betterncm-mac 的 RNPN 歌词窗（左封面栏 + 右歌词栏），背景参考
  * TIMER-err/qplayer 的流体背景（封面取色的漂移色团）。按钮图标用 music.apple.com
  * 网页播放器形制（见 [AppleIcons]），聚焦时按钮外圈出光晕。
- * 控制按钮只保留 上一首 · 播放暂停 · 下一首 · 喜欢 四个。
+ * 控制行五个按钮，左右各两个围绕中间的播放/暂停：
+ * 「O（切回标准）· 上一首 · 播放暂停 · 下一首 · 喜欢」。
  *
  * 【尺寸约定】本文件所有布局尺寸都由「实测像素 + LocalDensity」推出，不写死 dp：
  *  - 左栏用 BoxWithConstraints 拿到真实宽/高，封面、按钮、间距全部按栏宽/栏高比例计算，
@@ -122,6 +127,7 @@ internal fun rnpnLineEffects(
 }
 
 /** 整页 Apple Music 舞台：左栏信息 + 右栏歌词，铺在流体背景上。 */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun RnpnStage(
     track: Track,
@@ -138,6 +144,13 @@ internal fun RnpnStage(
     onNext: () -> Unit,
     onToggleFav: () -> Unit,
     onSeekTo: (Long) -> Unit,
+    /** 控制行最左侧的「O」按钮：切回标准界面。 */
+    onSwitchStandard: () -> Unit = {},
+    /**
+     * 逐字扫光的时间来源（毫秒）。由页面传入播放器的**媒体时钟**（ExoPlayer.currentPosition），
+     * 每帧读取一次即可拿到连续、无跳变的位置；为 null 时退回按 positionMs + 帧间隔外推。
+     */
+    positionProvider: (() -> Long)? = null,
     modifier: Modifier = Modifier,
 ) {
     val palette = rememberCoverPalette(track.picURL)
@@ -178,6 +191,7 @@ internal fun RnpnStage(
                 onNext = onNext,
                 onToggleFav = onToggleFav,
                 onSeekTo = onSeekTo,
+                onSwitchStandard = onSwitchStandard,
                 modifier = Modifier
                     .fillMaxHeight()
                     .width(px(leftW)),
@@ -188,11 +202,13 @@ internal fun RnpnStage(
             RnpnLyrics(
                 lyrics = lyrics,
                 positionMs = positionMs,
+                isPlaying = isPlaying,
                 fontSizeSp = lyricFontSizeSp,
                 showTranslation = showTranslation,
                 fontFamily = lyricFontFamily,
                 ink = ink,
                 sweepColor = palette.vivid,
+                positionProvider = positionProvider,
                 modifier = Modifier
                     .fillMaxHeight()
                     .weight(1f),
@@ -293,13 +309,17 @@ private fun RnpnLeftColumn(
     onNext: () -> Unit,
     onToggleFav: () -> Unit,
     onSeekTo: (Long) -> Unit,
+    /** 控制行最左边的「O」：切回标准界面。 */
+    onSwitchStandard: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val progressFocus = remember { FocusRequester() }
     val prevFocus = remember { FocusRequester() }
     val playFocus = remember { FocusRequester() }
     val nextFocus = remember { FocusRequester() }
     val favFocus = remember { FocusRequester() }
+    val progressFocus = remember { FocusRequester() }
+    // 「O」：控制行最左端（上一首左边），进度条按上键回到这里。
+    val homeFocus = remember { FocusRequester() }
     // 进页面焦点落在播放键上；首帧节点未挂载会抛异常，按 50ms 重试（同 PlayerScreen 的 tryRequestFocus）。
     LaunchedEffect(Unit) {
         repeat(6) {
@@ -314,10 +334,11 @@ private fun RnpnLeftColumn(
         val hPx = constraints.maxHeight.toFloat()
         fun px(v: Float): Dp = with(density) { v.toDp() }
 
-        // 控制行：按钮直径按栏宽比例。3 小 1 大 + 3 间距 ≈ 0.86 栏宽，永不横向溢出。
-        val btnSmall = wPx * 0.17f
-        val btnBig = wPx * 0.215f
-        val btnGap = wPx * 0.045f
+        // 控制行 5 个按钮：小 4 + 大 1 + 4 间距 ≈ 0.89 栏宽，永不横向溢出；
+        // 左右各两个对称分布在播放键两侧，播放键因此正好落在栏（≈整块舞台）的水平中心。
+        val btnSmall = wPx * 0.145f
+        val btnBig = wPx * 0.19f
+        val btnGap = wPx * 0.030f
         val ctrlRowH = btnBig * 1.5f              // 含光晕余量
         // 进度区（进度条 + 时间行）
         val progressBarH = wPx * 0.085f
@@ -394,6 +415,7 @@ private fun RnpnLeftColumn(
                 onSeekTo = onSeekTo,
                 focusRequester = progressFocus,
                 downFocusRequester = playFocus,
+                upFocusRequester = homeFocus,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(px(progressBarH)),
@@ -411,7 +433,9 @@ private fun RnpnLeftColumn(
 
             Spacer(Modifier.height(px(vGap)))
 
-            // 控制行：上一首 · 播放暂停 · 下一首 · 喜欢（与 music.apple.com 网页播放器同序）
+            // 控制行：O · 上一首 · 播放暂停 · 下一首 · 喜欢。
+            // 五个按钮对称排布，播放/暂停落在整行（= 左栏）正中；「O」取代了之前浮在左上角
+            // 的独立按钮，观感统一，也不必再和进度条抢焦点路径。
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -419,6 +443,23 @@ private fun RnpnLeftColumn(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                RnpnIconButton(
+                    icon = AppleIcons.O,
+                    tint = ink.copy(alpha = 0.62f),
+                    glow = ink,
+                    onClick = onSwitchStandard,
+                    size = px(btnSmall * 0.92f),
+                    iconScale = 0.86f,
+                    innerModifier = Modifier
+                        .focusRequester(homeFocus)
+                        .focusProperties {
+                            up = progressFocus
+                            down = FocusRequester.Cancel
+                            left = FocusRequester.Cancel
+                            right = prevFocus
+                        },
+                )
+                Spacer(Modifier.width(px(btnGap)))
                 RnpnIconButton(
                     icon = AppleIcons.Previous,
                     tint = ink.copy(alpha = 0.88f),
@@ -430,7 +471,7 @@ private fun RnpnLeftColumn(
                         .focusProperties {
                             up = progressFocus
                             down = FocusRequester.Cancel
-                            left = FocusRequester.Cancel
+                            left = homeFocus
                             right = playFocus
                         },
                 )
@@ -559,6 +600,8 @@ private fun RnpnProgress(
     onSeekTo: (Long) -> Unit,
     focusRequester: FocusRequester,
     downFocusRequester: FocusRequester,
+    /** 按上键去的位置；null = 拦住（不再穿到别的控件）。 */
+    upFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier,
 ) {
     val frac = if (durationMs <= 0L) 0f else (positionMs.toFloat() / durationMs).coerceIn(0f, 1f)
@@ -573,7 +616,7 @@ private fun RnpnProgress(
             .graphicsLayer { alpha = if (focused) 1f else 0.92f }
             .focusRequester(focusRequester)
             .focusProperties {
-                up = FocusRequester.Cancel
+                up = upFocusRequester ?: FocusRequester.Cancel
                 down = downFocusRequester
                 left = FocusRequester.Cancel
                 right = FocusRequester.Cancel
@@ -619,11 +662,15 @@ private fun RnpnProgress(
 private fun RnpnLyrics(
     lyrics: List<LyricLine>,
     positionMs: Long,
+    /** 是否正在播放：逐字进度只在播放时按墙钟外推（暂停时冻结）。 */
+    isPlaying: Boolean,
     fontSizeSp: Int,
     showTranslation: Boolean,
     fontFamily: FontFamily?,
     ink: Color,
     sweepColor: Color,
+    /** 逐字扫光的时间来源；见 [RnpnStage.positionProvider]。 */
+    positionProvider: (() -> Long)? = null,
     modifier: Modifier = Modifier,
 ) {
     if (lyrics.isEmpty()) {
@@ -635,26 +682,46 @@ private fun RnpnLyrics(
 
     val active = LyricParser.activeIndex(positionMs / 1000.0, lyrics)
 
-    // 逐字扫光进度：positionMs 每秒 tick 一次，用 Animatable 线性补间，视觉上连续扫过。
-    val sweep = remember { Animatable(1f) }
-    var lastActive by remember { mutableIntStateOf(-1) }
-    val positionSec = positionMs / 1000.0
-    LaunchedEffect(active, positionSec) {
-        if (active != lastActive) {
-            lastActive = active
-            sweep.snapTo(0f)
+    // ---- 逐字扫光进度（流畅度优化）----
+    // 旧实现：LaunchedEffect(active, positionSec) 里跑 700ms tween。positionMs 每秒才更新一次，
+    // 于是每秒「动 0.7s → 静止 0.3s」，肉眼就是卡顿；v1.2 改成帧时钟外推，但位置源仍是秒级
+    // 快照 + 自累计，一旦累计与真实音频有偏差，每秒校正一次就是一次肉眼可见的「抽一下」。
+    // 现在每帧直接向播放器要**媒体时钟**（ExoPlayer.currentPosition 内部按 elapsedRealtime
+    // 外推，误差在毫秒级），扫光位置与音频完全同步，没有校正跳变；仅在暂停时冻结。
+    val sweepProgress = remember { mutableFloatStateOf(1f) }
+    val latestPosMs by rememberUpdatedState(positionMs)
+    val latestPlaying by rememberUpdatedState(isPlaying)
+    val latestProvider by rememberUpdatedState(positionProvider)
+    val curLine = lyrics.getOrNull(active.coerceAtLeast(0))
+    val nextLine = lyrics.getOrNull(active + 1)
+    val lineStartSec = curLine?.time ?: -1.0
+    val lineEndSec = nextLine?.time ?: -1.0
+    LaunchedEffect(active, lineStartSec, lineEndSec) {
+        // 纯文本歌词 / 算不出时长 → 整行直接点亮，不做扫描。
+        if (lineStartSec < 0 || lineEndSec <= lineStartSec) {
+            sweepProgress.floatValue = 1f
+            return@LaunchedEffect
         }
-        val line = lyrics.getOrNull(active)
-        val next = lyrics.getOrNull(active + 1)
-        val target = if (line == null) {
-            0f
-        } else {
-            val start = line.time
-            val end = next?.time
-            if (start < 0 || end == null || end <= start) 1f
-            else ((positionSec - start) / (end - start)).coerceIn(0.0, 1.0).toFloat()
+        val span = (lineEndSec - lineStartSec).toFloat()
+        var lastFrame = 0L
+        var estSec = latestPosMs / 1000f
+        while (true) {
+            val now = withFrameNanos { it }
+            val ms = if (latestPlaying) {
+                val real = runCatching { latestProvider?.invoke()?.takeIf { it > 0L } }.getOrNull()
+                if (real != null) real else {
+                    // 没有媒体时钟时的兜底：按帧间隔外推，只在偏差大时校正。
+                    if (lastFrame != 0L) estSec += (now - lastFrame) / 1_000_000_000f
+                    if (abs(latestPosMs / 1000f - estSec) > 0.35f) estSec = latestPosMs / 1000f
+                    (estSec * 1000f).toLong()
+                }
+            } else {
+                latestPosMs
+            }
+            lastFrame = now
+            sweepProgress.floatValue =
+                ((ms / 1000f - lineStartSec.toFloat()) / span).coerceIn(0f, 1f)
         }
-        sweep.animateTo(target, tween(durationMillis = 700, easing = LinearEasing))
     }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize().rnpnMaskEdges()) {
@@ -668,12 +735,12 @@ private fun RnpnLyrics(
         // fontSp 用于 Text 渲染；fontPx 是同一字号的真实渲染像素，用于行高/定位。
         val baseSp = max(12f, fontSizeSp * kScale)
         val basePx = with(density) { baseSp.sp.toPx() }
-        // 当前行放大 1.2 倍（用户需求），非当前行保持原号。
-        val curSp = baseSp * 1.2f
-        val curPx = basePx * 1.2f
-        val alignFactor = 0.5f                // 当前行中心锚在容器 50% 高度
+        // 当前行不再放大：与其它行同字号，靠颜色/光晕区分层级。
+        val curSp = baseSp
+        val curPx = basePx
 
-        // 每行高度（px）：原文行 +（有译文时）译文行 + 译间距；当前行用放大的字号。
+        // 每行高度（px）：原文行 +（有译文时）译文行 + 译间距。当前行字号与其它行一致，
+        // 所以行高与 active 无关 → 行槽位可以静态累加，只让整列做一次平滑滚动。
         fun lineHeightPx(i: Int): Float {
             val px = if (i == active) curPx else basePx
             val hasTrans = showTranslation && !lyrics[i].translation.isNullOrBlank()
@@ -681,19 +748,33 @@ private fun RnpnLyrics(
         }
         val heights = FloatArray(n) { lineHeightPx(it) }
         val space = basePx * 1.2f              // 行距（px）
+        // 静态槽位：pos[i] = 第 i 行行顶在「内容坐标」里的位置（与 active 无关）。
+        val pos = FloatArray(n)
+        for (i in 1 until n) pos[i] = pos[i - 1] + heights[i - 1] + space
         val d = active.coerceIn(0, n - 1)
-        val top = FloatArray(n)
-        top[d] = boxH * alignFactor - heights[d] / 2f
-        for (i in d - 1 downTo 0) {
-            val fx = rnpnLineEffects(abs(i - d))
-            top[i] = top[i + 1] - heights[i] * fx.scale - space
+
+        // ---- 换行时整列平滑滚动 ----
+        // 旧实现按 active 现算每行 top[] 并直接写进 translationY：换行瞬间整列「啪」地跳一格，
+        // 与逐字扫光叠在一起就是「抽动感」。改成：槽位固定，只让 scrollY 这一个值做 420ms 缓动，
+        // 换行时整列滑过去、当前行精确停在面板正中（目标值可静态算准，不会像列表滚动那样偏行）。
+        val scrollTarget = pos[d] - (boxH - heights[d]) / 2f
+        // 用 Animatable + 绘制阶段读值：滚动过程中不触发任何重组，只是重绘位移，
+        // 否则每帧重组 13 行 Text 反而更卡。
+        val scrollY = remember(lyrics) { Animatable(scrollTarget) }
+        LaunchedEffect(scrollTarget) {
+            scrollY.animateTo(scrollTarget, tween(durationMillis = 420, easing = FastOutSlowInEasing))
         }
-        for (i in d + 1 until n) {
-            top[i] = top[i - 1] + heights[i - 1] * rnpnLineEffects(abs((i - 1) - d)).scale + space
+        // 当前行「长出来」的一点点放大：换行时新行从 0.94 回到 1，避免字号硬切。
+        val curGrow = remember { Animatable(1f) }
+        LaunchedEffect(d) {
+            curGrow.snapTo(0.94f)
+            curGrow.animateTo(1f, tween(durationMillis = 280, easing = FastOutSlowInEasing))
         }
 
         for (i in 0 until n) {
-            val visible = top[i] + heights[i] > -boxH * 0.6f && top[i] < boxH * 1.6f
+            // 可见性按「滚动到位后」的位置判断（不用动画中间值，避免读状态引起逐帧重组）。
+            val settledY = pos[i] - scrollTarget
+            val visible = settledY + heights[i] > -boxH * 0.9f && settledY < boxH * 1.9f
             if (!visible) continue
             val fx = rnpnLineEffects(abs(i - d))
             val isCurrent = i == d
@@ -708,12 +789,14 @@ private fun RnpnLyrics(
                 ink = ink,
                 sweepColor = sweepColor,
                 fx = fx,
-                sweepProgress = if (isCurrent) ({ sweep.value }) else null,
+                // 当前行的「长出来」只在绘制阶段读值（lambda），不会引起整列重组。
+                growProvider = if (isCurrent) ({ curGrow.value }) else null,
+                sweepProgress = if (isCurrent) ({ sweepProgress.floatValue }) else null,
                 modifier = Modifier
                     .fillMaxWidth()
                     .graphicsLayer {
                         transformOrigin = TransformOrigin(0f, 0.5f)
-                        translationY = top[i]     // px，与容器高同单位
+                        translationY = pos[i] - scrollY.value     // px，与容器高同单位
                         scaleX = fx.scale
                         scaleY = fx.scale
                         alpha = fx.opacity
@@ -735,54 +818,102 @@ private fun RnpnLyricLine(
     ink: Color,
     sweepColor: Color,
     fx: RnpnLineFx,
+    /** 当前行的「长出来」缩放（绘制阶段读值）；非当前行为 null。 */
+    growProvider: (() -> Float)? = null,
     /** 当前行的逐字扫光进度；非当前行为 null。 */
     sweepProgress: (() -> Float)?,
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
     val transAlpha = if (isCurrent) 0.9f else 0.45f
-    // 当前行：纯白打底（未唱部分）+ 白色光晕阴影，保证在流体背景上始终清晰可读；
-    // 已唱部分由 lyricSweep 填成封面最鲜艳色。非当前行用更低的暖白透明度拉开层次。
+    // 当前行：纯白打底（未唱部分），已唱部分由 lyricSweep 填成封面最鲜艳色。
+    // 非当前行用更低的暖白透明度拉开层次。
     val originalColor = if (isCurrent) {
         Color.White
     } else {
         ink.copy(alpha = 0.45f)
     }
-    // 当前行加白色光晕阴影，进一步从背景里「提」出来。
-    val textStyle = if (isCurrent) {
-        androidx.compose.ui.text.TextStyle(
-            shadow = androidx.compose.ui.graphics.Shadow(
-                color = Color.White.copy(alpha = 0.55f),
-                blurRadius = 18f,
-            ),
-        )
-    } else {
-        androidx.compose.ui.text.TextStyle()
-    }
-    // 行模糊：Modifier.blur 在 API 31+ 才有 RenderEffect，Android 8/9 自动降级为不模糊。
-    val textMod = if (fx.blurPx > 0.01f) Modifier.blur(radius = (fx.blurPx / 2f).dp) else Modifier
+    // 行模糊只有紧邻的一行做：RenderEffect 是「每行一层」的离线渲染，电视 GPU 上很贵，
+    // 远处行改用透明度 / 缩放表现景深即可（旧版每行都糊，是逐字动画掉帧的主因之一）。
+    val textMod = if (fx.blurPx > 0.01f && fx.blurPx < 2f) Modifier.blur(radius = (fx.blurPx / 2f).dp) else Modifier
+    val growMod = if (growProvider != null) {
+        Modifier.graphicsLayer {
+            transformOrigin = TransformOrigin(0f, 0.5f)
+            val s = growProvider()
+            scaleX = s
+            scaleY = s
+        }
+    } else Modifier
     val transGapDp = with(density) { (fontPx * 0.3f).toDp() }
+    // 当前行文字**实际占用宽度**：扫光只在这段宽度里推进，否则短句会提前扫完、长句拖后，
+    // 每句速度都不一样，正是「抽动感」的来源之一。排版结果变了才更新。
+    var textWidthPx by remember(line.text) { mutableFloatStateOf(0f) }
 
-    Column(modifier.then(textMod)) {
-        Text(
-            line.text,
-            color = originalColor,
-            fontSize = fontSp.sp,
-            lineHeight = lineSp.sp,
-            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-            textAlign = TextAlign.Start,
-            fontFamily = fontFamily,
-            style = textStyle,
-            maxLines = 3,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(
-                    if (sweepProgress != null) {
-                        Modifier.lyricSweep(sweepProgress, sweepColor)
-                    } else Modifier,
-                ),
-        )
+    Column(modifier.then(growMod).then(textMod)) {
+        if (isCurrent) {
+            // 当前行 = 两层：底下是**静态**的白色光晕层（文字透明 + shadow 只画辉光），
+            // 上面是参与逐字扫光的纯色文字层。
+            // 旧版把 shadow 直接挂在扫光文字上：逐字扫光每帧重画文字，等于每帧重新做一次
+            // 18px 高斯模糊 → 电视上直接掉帧；拆开后辉光层的显示列表可以长期复用。
+            Box(Modifier.fillMaxWidth()) {
+                Text(
+                    line.text,
+                    color = Color.Transparent,
+                    fontSize = fontSp.sp,
+                    lineHeight = lineSp.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Start,
+                    fontFamily = fontFamily,
+                    style = androidx.compose.ui.text.TextStyle(
+                        shadow = androidx.compose.ui.graphics.Shadow(
+                            color = Color.White.copy(alpha = 0.55f),
+                            blurRadius = 18f,
+                        ),
+                    ),
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    // 独立图层：内容不变时整层缓存，不会跟着扫光每帧重画。
+                    modifier = Modifier.fillMaxWidth().graphicsLayer(),
+                )
+                Text(
+                    line.text,
+                    color = originalColor,
+                    fontSize = fontSp.sp,
+                    lineHeight = lineSp.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Start,
+                    fontFamily = fontFamily,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    // 排版结果里取最宽那一行的右边界 = 文字真实宽度。
+                    onTextLayout = { r ->
+                        var w = 0f
+                        for (li in 0 until r.lineCount) w = max(w, r.getLineRight(li))
+                        textWidthPx = w
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(
+                            if (sweepProgress != null) {
+                                Modifier.lyricSweep(sweepProgress, sweepColor) { textWidthPx }
+                            } else Modifier,
+                        ),
+                )
+            }
+        } else {
+            Text(
+                line.text,
+                color = originalColor,
+                fontSize = fontSp.sp,
+                lineHeight = lineSp.sp,
+                fontWeight = FontWeight.Normal,
+                textAlign = TextAlign.Start,
+                fontFamily = fontFamily,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
         if (showTranslation) {
             line.translation?.takeIf { it.isNotBlank() }?.let { t ->
                 Spacer(Modifier.height(transGapDp))
@@ -861,8 +992,8 @@ private fun rememberCoverPalette(picURL: String?): CoverPalette {
                     )
                 }
 
-                // 全图最鲜艳（饱和度最高）的颜色：HSV 里 S 最大，且亮度适中（不太黑也不太白）。
-                // 取到后把饱和度拉满、亮度抬到近顶，作为高光扫光色（否则会显得暗淡）。
+                // 取封面里饱和度最高的色相，但**不再拉满**：饱和度压到 0.55、亮度抬到 0.90，
+                // 再向白混 0.22 —— 得到柔和不刺眼的粉彩扫光色（用户反馈此前过于鲜艳刺眼）。
                 fun vividColor(): Color {
                     var bestSat = -1f
                     var bestHue = 0f
@@ -881,14 +1012,12 @@ private fun rememberCoverPalette(picURL: String?): CoverPalette {
                         }
                     }
                     if (bestSat < 0f) return fallbackVivid
-                    // 饱和度拉满到 1.0（原色可能只有 0.5~0.7，视觉偏灰）、亮度提到 0.98 做高光。
-                    val boosted = android.graphics.Color.HSVToColor(
-                        floatArrayOf(bestHue, 1.0f, 0.98f),
+                    val soft = android.graphics.Color.HSVToColor(
+                        floatArrayOf(bestHue, 0.55f, 0.90f),
                     )
-                    // 若原色本身就偏亮（如黄/青），再向白微混一点，形成"高光"而非纯饱和色。
-                    val sat = bestSat.coerceIn(0f, 1f)
-                    val towardWhite = (1f - sat) * 0.25f
-                    val cc = Color(boosted)
+                    // 向白混 22%：进一步降锐度，成为柔和的粉彩高光。
+                    val cc = Color(soft)
+                    val towardWhite = 0.22f
                     return Color(
                         red = cc.red + (1f - cc.red) * towardWhite,
                         green = cc.green + (1f - cc.green) * towardWhite,

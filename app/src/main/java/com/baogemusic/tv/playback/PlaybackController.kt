@@ -803,6 +803,18 @@ class PlaybackController(
         player.release()
     }
 
+    /**
+     * 逐字歌词用的**媒体时钟**（毫秒）。
+     *
+     * `state.positionMs` 由 [startPositionTicker] 每秒刷新一次，逐字扫光若以它为唯一时间源，
+     * 就只能靠自累计外推、再每秒校正，校正那一下就是肉眼可见的「抽动」。
+     * ExoPlayer 的 `currentPosition` 内部已经按 `SystemClock.elapsedRealtime` + 播放倍速
+     * 做过外推，主线程每帧读一次开销极小（纯算术），能给出毫秒级连续且与音频同步的位置。
+     */
+    fun livePositionMs(): Long = runCatching {
+        if (player.isPlaying) player.currentPosition.coerceAtLeast(0L) else _state.value.positionMs
+    }.getOrDefault(_state.value.positionMs)
+
     /** Current ExoPlayer audio session id — what an `Equalizer` etc must bind to. */
     val audioSessionId: Int get() = player.audioSessionId
 }

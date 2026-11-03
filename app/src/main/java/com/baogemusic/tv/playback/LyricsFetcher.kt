@@ -94,7 +94,8 @@ class LyricsFetcher(
         val result = runCatching { sources.requestLyric(track) }.getOrNull() ?: return null
         val lyric = result.optString("lyric")
         val tlyric = result.optString("tlyric").ifEmpty { null }
-        return LyricParser.parse(lyric, tlyric).ifEmpty { null }
+        // 自动识别：用户脚本也可能直接返回 QRC / YRC 逐字歌词。
+        return LyricParser.parseAuto(lyric, tlyric).ifEmpty { null }
     }
 
     fun clear() {

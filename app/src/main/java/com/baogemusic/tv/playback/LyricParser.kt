@@ -6,11 +6,23 @@ data class LyricLine(
     val time: Double,
     val text: String,
     val translation: String? = null,
+    /**
+     * 音节级时间片（逐字用）。行级 LRC 会由 [LyricWordParser.distribute] 按标点权重估算；
+     * QRC / YRC / KRC / TTML 则是真实数据。空列表 = 没有逐字信息。
+     */
+    val words: List<LyricWord> = emptyList(),
 )
 
 /** Standard LRC parser, ported from iOS `LRCParser`. */
 object LyricParser {
     private val timeTag = Regex("""\[(\d{1,2}):(\d{1,2})(?:[.:](\d{1,3}))?]""")
+
+    /**
+     * 自动识别格式的解析入口：QRC / YRC / KRC / TTML 走 [LyricWordParser]（带音节），
+     * LRC / 纯文本走本解析器（并按标点权重补一份估算音节）。
+     */
+    fun parseAuto(raw: String, translation: String? = null): List<LyricLine> =
+        LyricWordParser.parse(raw, translation)
 
     fun parse(raw: String, translation: String? = null): List<LyricLine> {
         val main = parseLines(raw)

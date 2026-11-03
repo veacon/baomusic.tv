@@ -127,7 +127,9 @@ enum class PlayerUi(val label: String) {
 /** 全屏歌词特效（参考 YuMusic / QQ 音乐）：
  *  - NONE：常规两栏歌词；
  *  - LIGHT（光感）：全屏居中三行歌词 + 柔和暗角，逐句淡入（原「商籁」）；
- *  - STARSEA（星海）：全屏深蓝星海背景 + 蓝白辉光歌词。
+ *  - STARSEA（星海）：全屏深蓝星海背景 + 蓝白辉光歌词；
+ *  - INK_SCROLL（墨卷）：竖排手卷，逐字「落笔」（alpha + 缩放 + 墨晕），宣纸底 + 朱砂印章，可翻阅；
+ *  - TRACK_BED（声轨）：音轨时间轴，句=块（宽=时值）、小格=音节，底部标尺 + 播放头游标。
  *  已下线的「极光 AURORA」「霓虹 NEON」「胶片 CINEMA」由 [FullscreenLyricFxSerializer]
  *  兜底降级为光感，老存档不会因为枚举值消失而整份设置被重置。 */
 @Serializable(with = FullscreenLyricFxSerializer::class)
@@ -135,6 +137,8 @@ enum class FullscreenLyricFx(val label: String) {
     NONE("关闭"),
     LIGHT("光感"),
     STARSEA("星海"),
+    INK_SCROLL("墨卷"),
+    TRACK_BED("声轨"),
 }
 
 /** 手写枚举序列化器：按名字存，读取时把历史/已下线的值映射到现存项。 */
@@ -236,8 +240,10 @@ data class Settings(
     val playerFx: PlayerFx = PlayerFx.WAVE,
     /** 播放页 UI 风格：复刻网易（默认）或 Apple Music（RNPN 歌词窗一比一复刻）。 */
     val playerUi: PlayerUi = PlayerUi.NETEASE,
-    /** 播放页全屏歌词特效：关闭 / 光感 / 星海。 */
+    /** 播放页全屏歌词特效：关闭 / 光感 / 星海 / 墨卷 / 声轨。 */
     val fullscreenLyricFx: FullscreenLyricFx = FullscreenLyricFx.NONE,
+    /** 全屏歌词的浅色纸面：墨卷 = 宣纸，声轨 = 工程纸；关掉则是夜墨 / 机房（深色）。 */
+    val fullscreenLyricLight: Boolean = false,
     /** 播放页唱片（封面）整体大小的缩放系数：0.5–3.0（步长 0.1，默认 1.0）。
      *  改动即时生效，封面、动效中心都会同步缩放。详见 [CoverScale]。 */
     val coverScale: Float = CoverScale.DEFAULT,
@@ -268,9 +274,9 @@ data class Settings(
         com.baogemusic.tv.data.model.SourceID.WY,
         com.baogemusic.tv.data.model.SourceID.TX,
     ),
-    /** 更新代理：形如 `127.0.0.1:7890` 或 `socks5://192.168.1.5:1080`。
-     *  留空 = 直连（仍会自动尝试内置的 GitHub 镜像加速）。 */
-    val updateProxy: String = "",
+    /** 检查更新走的 GitHub 加速前缀（如 `https://ghfast.top/`）。
+     *  默认用内置的第一个加速前缀；用户可在设置里换另外三个。留空 = 只直连。 */
+    val updateAccel: String = com.baogemusic.tv.playback.update.GithubAccel.DEFAULT.prefix,
     /** 设置结构版本，仅用于一次性迁移（见 [SettingsStore.loadAll]）。不要手动改。 */
     val schemaVersion: Int = 0,
 )

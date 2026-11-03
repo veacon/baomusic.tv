@@ -302,8 +302,8 @@ class AppContainer(val appContext: Context) {
                 downloadStore.configuredRoot = s.customDownloadDir?.let { java.io.File(it) }
                 downloadStore.downloadTreeUri = s.customDownloadTreeUri?.let { runCatching { android.net.Uri.parse(it) }.getOrNull() }
                 downloadCoordinator.setMaxConcurrent(s.maxConcurrentDownloads)
-                // 检查更新走 GitHub，大陆网络需要用户自备代理（填了才生效，空 = 直连 + 内置镜像）。
-                updateManager.proxySpec = s.updateProxy
+                // 检查更新走 GitHub 加速前缀（默认 ghfast.top，可换另外三条线路）。
+                updateManager.accel = s.updateAccel
             }.launchIn(appScope)
             // 图片缓存上限改变时重建 ImageLoader（先清空旧磁盘缓存再套用新上限）。
             settingsStore.settings.map { it.imageCacheGb }.distinctUntilChanged()

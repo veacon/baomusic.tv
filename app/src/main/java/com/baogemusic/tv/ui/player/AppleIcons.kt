@@ -164,6 +164,27 @@ internal object AppleIcons {
         }
     }
 
+    /**
+     * 「O」圆环标志 —— Apple Music 页控制行最左端（上一首左边），点一下切回标准界面。
+     * 画成一个正圆描边（四段三次贝塞尔近似），视觉上就是字母 O。
+     */
+    val O: ImageVector by lazy {
+        buildVector("apple.o") {
+            path(
+                stroke = SolidColor(Color.Black),
+                strokeLineWidth = 2.4f,
+                strokeLineCap = StrokeCap.Round,
+            ) {
+                moveTo(12f, 4.2f)
+                curveTo(16.31f, 4.2f, 19.8f, 7.69f, 19.8f, 12f)
+                curveTo(19.8f, 16.31f, 16.31f, 19.8f, 12f, 19.8f)
+                curveTo(7.69f, 19.8f, 4.2f, 16.31f, 4.2f, 12f)
+                curveTo(4.2f, 7.69f, 7.69f, 4.2f, 12f, 4.2f)
+                close()
+            }
+        }
+    }
+
     // ---------------------------------------------------------------------------------------------
 
     private fun buildVector(

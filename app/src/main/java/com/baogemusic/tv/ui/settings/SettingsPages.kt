@@ -537,7 +537,16 @@ internal fun AppearancePage(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            HintText("光感：居中三行 + 柔和暗角；星海：深蓝星海 + 蓝白辉光。开启后播放页进入全屏歌词，左上角显示歌名与歌手，底部控制栏按键时浮出。")
+            TvSwitchRow("浅色纸面（墨卷 = 宣纸，声轨 = 工程纸；关掉是夜墨 / 机房）", settings.fullscreenLyricLight) {
+                onUpdate { it.copy(fullscreenLyricLight = !it.fullscreenLyricLight) }
+            }
+            Spacer(Modifier.height(8.dp))
+            HintText(
+                "光感：居中三行 + 柔和暗角；星海：深蓝星海 + 蓝白辉光；墨卷：竖排手卷，逐字「落笔」洇开，" +
+                    "宣纸底 + 朱砂印章，遥控器 ↑↓ 翻阅细读、OK 回到跟随；声轨：音轨时间轴，一句一格（块宽 = 时值），" +
+                    "块内小格 = 音节，底部标尺带播放头，←→ 拖时间轴、↑↓ 跳上下一句、OK 展开大字、长按 OK 切换纯文本视图。" +
+                    "开启后播放页进入全屏歌词，左上角显示歌名与歌手，底部控制栏按键时浮出。"
+            )
         }
 
         Section("歌单列数") {
@@ -994,54 +1003,33 @@ private fun UpdateSection(
         ) { Text(actionLabel, fontSize = 14.sp) }
     }
 
-    // 大陆网络访问 GitHub 基本都需要代理：给几个常见端口做快捷胶囊，也可以自己填。
-    Section("更新网络（大陆加速）") {
+    // 检查更新统一走 GitHub 加速前缀（不再提供代理设置）：默认一条，另外三条可替换。
+    Section("GitHub 加速线路") {
         Text(
-            "检查更新会访问 GitHub。若一直「检查失败」，可在这里填局域网内的代理地址。",
+            "检查更新与下载安装包都走这里的加速前缀 —— 大陆直连 GitHub 经常超时。",
             color = AppColors.TextMuted,
             fontSize = 12.sp,
         )
         Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            UpdateProxyPreset.entries.forEach { preset ->
-                TvPill(
-                    onClick = { onUpdate { it.copy(updateProxy = preset.value) } },
-                    selected = settings.updateProxy.trim() == preset.value,
-                ) { Text(preset.label, fontSize = 13.sp) }
+        val accels = com.baogemusic.tv.playback.update.GithubAccel.entries
+        // 两行两列：标签较长，单行四个会超出设置页宽度。
+        accels.chunked(2).forEachIndexed { rowIdx, rowItems ->
+            if (rowIdx > 0) Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                rowItems.forEach { accel ->
+                    TvPill(
+                        onClick = { onUpdate { it.copy(updateAccel = accel.prefix) } },
+                        selected = settings.updateAccel.trim() == accel.prefix,
+                    ) { Text(accel.label, fontSize = 13.sp) }
+                }
             }
-        }
-        Spacer(Modifier.height(10.dp))
-        TvTextFieldHost(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(4.dp)) { fieldModifier ->
-            OutlinedTextField(
-                value = settings.updateProxy,
-                onValueChange = { v -> onUpdate { it.copy(updateProxy = v.trim()) } },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth().then(fieldModifier),
-                placeholder = { Text("自定义：192.168.1.5:7890 或 socks5://192.168.1.5:1080", color = AppColors.TextMuted) },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = AppColors.TextPrimary,
-                    unfocusedTextColor = AppColors.TextPrimary,
-                    focusedBorderColor = AppColors.AccentGreen,
-                    unfocusedBorderColor = AppColors.Card,
-                    cursorColor = AppColors.AccentGreen,
-                ),
-            )
         }
         Spacer(Modifier.height(8.dp))
         HintText(
-            "留空 = 直连，并自动依次尝试内置的 GitHub 镜像加速（ghfast.top / gh-proxy.com 等）。" +
-                "填了代理则所有检查与下载都走该代理；代理只用于「检查更新」，不影响歌曲播放。",
+            "默认 ghfast.top；某条线路变慢或失效时换一条即可。" +
+                "选中的前缀失败会自动依次回落到其余前缀，全部失败才直连。",
         )
     }
-}
-
-/** 「更新网络」里的快捷代理端口：Clash / Clash Verge / v2rayN 的常见默认值。 */
-private enum class UpdateProxyPreset(val label: String, val value: String) {
-    OFF("直连", ""),
-    CLASH("Clash 7890", "127.0.0.1:7890"),
-    VERGE("Verge 7897", "127.0.0.1:7897"),
-    SOCKS("SOCKS 1080", "socks5://127.0.0.1:1080"),
 }
 
 /** Per-tier Material icon — small visual cue alongside the displayName in the picker. */

@@ -1,5 +1,6 @@
 package com.baogemusic.tv.ui.player
 
+import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -108,6 +109,9 @@ import com.baogemusic.tv.ui.appContainer
 import com.baogemusic.tv.ui.components.Artwork
 import com.baogemusic.tv.ui.components.TvFocusable
 import com.baogemusic.tv.ui.components.TvPill
+import com.baogemusic.tv.ui.player.fullscreen.FullscreenLyricController
+import com.baogemusic.tv.ui.player.fullscreen.InkScrollFx
+import com.baogemusic.tv.ui.player.fullscreen.TrackBedFx
 import com.baogemusic.tv.ui.theme.AppColors
 import com.baogemusic.tv.ui.theme.rememberAppFontFamily
 import kotlinx.coroutines.delay
@@ -146,16 +150,34 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
     if (wantsFocus) tryRequestFocus(playFocus)
   }
 
+  // 从 Apple Music（RNPN）切回标准界面时补一次焦点：切换会销毁 RNPN 舞台，原先持有焦点的
+  // 「O」/播放键节点随之移除，系统找不到落点，遥控器框选就「消失」了。这里在标准界面的
+  // 控制栏重新挂载后，把焦点明确放回播放/暂停。
+  var focusRestoreTick by remember { mutableIntStateOf(0) }
+  LaunchedEffect(focusRestoreTick) {
+    if (focusRestoreTick > 0) tryRequestFocus(playFocus)
+  }
+
   // Apple Music（RNPN）模式：左栏控制常驻，不存在「控件隐藏后唤出」的场景 —— auto-hide 的
   // 按键拦截器反而会吞掉遥控器第一次按键（焦点还挂在未挂载的 playFocus 上），故该模式整体关闭。
   val rnpnMode = settings.playerUi == com.baogemusic.tv.data.store.PlayerUi.RNPN &&
       settings.fullscreenLyricFx == FullscreenLyricFx.NONE
+
+  // 墨卷 / 声轨两种新全屏歌词的按键处理（声轨 ↑↓ 跳句）。
+  val fullscreenController = remember { FullscreenLyricController() }
 
   // 播放控件自动隐藏：空闲 5 秒隐藏进度条 + 控制栏。隐藏后 Compose 内没有焦点，按键只会落到
   // Activity，所以在 Activity.dispatchKeyEvent 层拦截：方向键 / 确认键只负责唤出控件（吞掉该次
   // 按键，避免确认键误触暂停）；返回、菜单、媒体键照常放行。
   var controlsVisible by remember { mutableStateOf(true) }
   var idleTick by remember { mutableStateOf(0) }
+  // 墨卷 / 声轨：进入后立即收起底部控件，让方向键直接归特效（按 OK 可再唤出控制栏）。
+  LaunchedEffect(settings.fullscreenLyricFx) {
+    val fx = settings.fullscreenLyricFx
+    if (fx == FullscreenLyricFx.INK_SCROLL || fx == FullscreenLyricFx.TRACK_BED) {
+      controlsVisible = false
+    }
+  }
   val autoHideActive = settings.autoHidePlayerControls && wantsFocus && !rnpnMode
   LaunchedEffect(autoHideActive, controlsVisible, idleTick) {
     if (!autoHideActive) {
@@ -167,12 +189,35 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
       controlsVisible = false
     }
   }
-  androidx.compose.runtime.DisposableEffect(autoHideActive) {
+  androidx.compose.runtime.DisposableEffect(autoHideActive, settings.fullscreenLyricFx) {
     val events = appContainer.events
     // 唤出控件那一次按键的后续（长按重复 + 抬起）也吞掉，否则抬起时焦点已在播放键上会触发暂停。
     var wakeKey: Int? = null
     val interceptor: (android.view.KeyEvent) -> Boolean = interceptor@{ e ->
       idleTick++
+      // 墨卷 / 声轨：**控件隐藏时**（沉浸看歌词的状态）方向键交给特效自己处理 ——
+      // 声轨 ↑↓ 跳句；墨卷纯展示。控件浮现时方向键仍归控制栏。
+      val fx = settings.fullscreenLyricFx
+      val fxOwn = fx == FullscreenLyricFx.INK_SCROLL || fx == FullscreenLyricFx.TRACK_BED
+      if (fxOwn && !controlsVisible) {
+        // OK 只做一件事：唤出底部控制栏（不再区分长短按）。
+        val isOk = e.keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
+            e.keyCode == android.view.KeyEvent.KEYCODE_ENTER
+        if (isOk) {
+          if (e.action == android.view.KeyEvent.ACTION_DOWN && e.repeatCount == 0) {
+            controlsVisible = true
+            scope.launch { tryRequestFocus(playFocus) }
+          }
+          return@interceptor true
+        }
+        val handled = fullscreenController.onKey(
+          fx = fx,
+          e = e,
+          lyrics = lyrics,
+          livePositionMs = { controller.livePositionMs() },
+        ) { ms -> controller.seekTo(ms) }
+        if (handled) return@interceptor true
+      }
       if (e.keyCode == wakeKey) {
         if (e.action == android.view.KeyEvent.ACTION_UP) wakeKey = null
         return@interceptor true
@@ -351,6 +396,8 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
         fontFamily = lyricFont,
         trackName = track.name,
         artist = track.singer,
+        positionProvider = { controller.livePositionMs() },
+        light = settings.fullscreenLyricLight,
         modifier = Modifier.fillMaxSize(),
       )
     }
@@ -373,6 +420,17 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
         onNext = { controller.next() },
         onToggleFav = { showPicker = true },
         onSeekTo = { controller.seekTo(it) },
+        // 逐字扫光用播放器媒体时钟（毫秒级连续），不再依赖每秒刷新一次的 state.positionMs。
+        positionProvider = { controller.livePositionMs() },
+        onSwitchStandard = {
+          scope.launch {
+            appContainer.settingsStore.update { s ->
+              s.copy(playerUi = com.baogemusic.tv.data.store.PlayerUi.NETEASE)
+            }
+            controlsVisible = true
+            focusRestoreTick++
+          }
+        },
         modifier = Modifier.fillMaxSize(),
       )
     } else Column(modifier = Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 32.dp)) {
@@ -440,7 +498,9 @@ fun PlayerScreen(onClose: () -> Unit, modifier: Modifier = Modifier) {
                     fullscreenLyricFx = when (s.fullscreenLyricFx) {
                       FullscreenLyricFx.NONE -> FullscreenLyricFx.LIGHT
                       FullscreenLyricFx.LIGHT -> FullscreenLyricFx.STARSEA
-                      FullscreenLyricFx.STARSEA -> FullscreenLyricFx.NONE
+                      FullscreenLyricFx.STARSEA -> FullscreenLyricFx.INK_SCROLL
+                      FullscreenLyricFx.INK_SCROLL -> FullscreenLyricFx.TRACK_BED
+                      FullscreenLyricFx.TRACK_BED -> FullscreenLyricFx.NONE
                     },
                   )
                 }
@@ -932,7 +992,9 @@ private fun TransportBar(
         onClick = onToggleFav,
         modifier = Modifier.focusProperties {
           left = nextFocus
-          right = lyricsFocus
+          // 右侧栏最左边是「字」按钮：从收藏往右必须先进「字」，否则会直接跳到全屏歌词，
+          // 表现为「右键跳过字体切换和苹果按钮」（#1.2 修复）。
+          right = fontFocus
         },
       )
     }
@@ -1114,18 +1176,35 @@ private fun ProgressBar(
   }
 }
 
-/** KTV 式逐字染色：已唱过的部分用高亮色覆盖（只在文字像素上着色，不会盖到背景）。 */
-internal fun Modifier.lyricSweep(progress: () -> Float, color: Color): Modifier = this
+/**
+ * KTV 式逐字染色：已唱过的部分用高亮色覆盖（只在文字像素上着色，不会盖到背景）。
+ *
+ * [textWidth] 返回这一行**文字实际占用的宽度**（不是控件宽度）。Text 用了 fillMaxWidth，
+ * 若直接按控件宽度扫，短句（文字只占半栏）会在整句还剩一半时就「扫完」，长句又会拖到句末
+ * 还没扫完 —— 每句的快慢都不一样，看起来就是忽快忽慢的抽动。按真实文字宽度扫，进度才与
+ * 歌手唱到哪个字一致。
+ */
+internal fun Modifier.lyricSweep(
+  progress: () -> Float,
+  color: Color,
+  textWidth: () -> Float = { 0f },
+): Modifier = this
   .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
   .drawWithContent {
     drawContent()
     val p = progress().coerceIn(0f, 1f)
     if (p > 0.002f) {
+      val tw = textWidth().let { if (it > 1f) minOf(it, size.width) else size.width }
       drawRect(
         topLeft = Offset.Zero,
-        size = Size(size.width * p, size.height),
-        // 右端留一点渐隐，扫描边缘不那么生硬
-        brush = Brush.horizontalGradient(listOf(color, color, color.copy(alpha = 0.4f))),
+        size = Size(tw * p, size.height),
+        // 右端留一点渐隐，扫描边缘不那么生硬。渐隐带只占扫过部分的 8%：
+        // 早期按三等分渐变，扫过范围窄时整块都在渐隐，看起来像忽明忽暗。
+        brush = Brush.horizontalGradient(
+          0f to color,
+          0.92f to color,
+          1f to color.copy(alpha = 0.45f),
+        ),
         blendMode = BlendMode.SrcAtop,
       )
     }
@@ -1226,8 +1305,8 @@ private fun LyricPane(
         ?: return@LaunchedEffect
       // 目标：行顶 = (面板高 - 行高)/2 → 行中心即面板中心。
       // 实测 info.offset 的坐标原点不含 contentPadding 顶部留白，导致当前行固定偏低两行；
-      // 这里把中心目标再上移两行（约 2 × 行高），补偿该偏差。
-      val target = (paneHPx - info.size) / 2f - info.size * 2f
+      // 这里把中心目标再上移一行（2 行 → 1 行，用户反馈「偏上一行，需下移一行」）。
+      val target = (paneHPx - info.size) / 2f - info.size * 1f
       val delta = info.offset - target
       if (abs(delta) > 1f) {
         runCatching { listState.animateScrollBy(delta, tween(320, easing = FastOutSlowInEasing)) }
@@ -1739,8 +1818,45 @@ private fun FullscreenLyricStage(
   fontFamily: FontFamily?,
   trackName: String,
   artist: String,
+  /** 播放器的媒体时钟（毫秒级连续）：逐字进度以它为唯一真值。 */
+  positionProvider: () -> Long,
+  /** 浅色纸面（宣纸 / 工程纸）。 */
+  light: Boolean,
   modifier: Modifier = Modifier,
 ) {
+  // ---- 新增两种全屏歌词：墨卷（竖排手卷）/ 声轨（音轨时间轴）-----------------------------
+  when (fx) {
+    FullscreenLyricFx.INK_SCROLL -> {
+      InkScrollFx(
+        lyrics = lyrics,
+        positionProvider = positionProvider,
+        fontSizeSp = fontSp,
+        showTranslation = showTranslation,
+        fontFamily = fontFamily,
+        trackName = trackName,
+        artist = artist,
+        light = light,
+        modifier = modifier.fillMaxSize(),
+      )
+      return
+    }
+    FullscreenLyricFx.TRACK_BED -> {
+      TrackBedFx(
+        lyrics = lyrics,
+        positionProvider = positionProvider,
+        fontSizeSp = fontSp,
+        showTranslation = showTranslation,
+        fontFamily = fontFamily,
+        trackName = trackName,
+        artist = artist,
+        light = light,
+        modifier = modifier.fillMaxSize(),
+      )
+      return
+    }
+    else -> Unit
+  }
+
   val active = LyricParser.activeIndex(positionMs / 1000.0, lyrics)
   val prev = lyrics.getOrNull(active - 1)
   val next = lyrics.getOrNull(active + 1)

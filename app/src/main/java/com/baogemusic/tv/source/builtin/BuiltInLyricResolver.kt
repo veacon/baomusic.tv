@@ -149,7 +149,9 @@ class BuiltInLyricResolver(private val http: CatalogHttp) {
             if (json.optInt("code") != 0) continue
             val lrc = decodeB64(json.optString("lyric")) ?: continue
             val trans = json.optString("trans").ifEmpty { null }?.let { decodeB64(it) }
-            return LyricParser.parse(lrc, trans).ifEmpty { null }
+            // QQ 的新版接口在有「逐字歌词」时返回的是 QRC 格式（[起始,时长] + 词(起,时)），
+            // 这里交给自动识别：有 QRC 就出音节，只有 LRC 就按标点权重估算。
+            return LyricParser.parseAuto(lrc, trans).ifEmpty { null }
         }
         return null
     }
@@ -162,16 +164,24 @@ class BuiltInLyricResolver(private val http: CatalogHttp) {
             "Cookie" to "os=pc; appver=8.9.70",
         )
         // lv/kv/tv 取 -1 时返回完整原文（含翻译），某些 id 用 1 反而返回空，两组都试。
+        // yv/yv2 是「逐字歌词」开关：网易的 YRC 是明文，不需要解密，能拿到就用它。
         val urls = listOf(
-            "https://music.163.com/api/song/lyric?os=pc&id=$songmid&lv=-1&kv=-1&tv=-1",
-            "https://music.163.com/api/song/lyric?id=$songmid&lv=1&kv=1&tv=-1",
+            "https://music.163.com/api/song/lyric?os=pc&id=$songmid&lv=-1&kv=-1&tv=-1&yv=-1&yv2=-1",
+            "https://music.163.com/api/song/lyric?os=pc&id=$songmid&lv=1&kv=1&tv=-1&yv=-1&yv2=-1",
         )
         for (url in urls) {
             val json = json(url, headers) ?: continue
+            // 优先逐字（YRC）：行头 [起始,时长]，正文 (字起始,字时长,0)字
+            val yrc = json.optJSONObject("yrc")?.optString("lyric")?.ifEmpty { null }
+            val ytlrc = json.optJSONObject("ytlrc")?.optString("lyric")?.ifEmpty { null }
+            if (yrc != null) {
+                val parsed = LyricParser.parseAuto(yrc, ytlrc)
+                if (parsed.isNotEmpty()) return parsed
+            }
             val lyric = json.optJSONObject("lrc")?.optString("lyric") ?: ""
             if (lyric.isEmpty()) continue
             val tlyric = json.optJSONObject("tlyric")?.optString("lyric")?.ifEmpty { null }
-            return LyricParser.parse(lyric, tlyric).ifEmpty { null }
+            return LyricParser.parseAuto(lyric, tlyric).ifEmpty { null }
         }
         return null
     }

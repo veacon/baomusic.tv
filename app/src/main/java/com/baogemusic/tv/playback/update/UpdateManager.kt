@@ -18,9 +18,29 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
-import java.net.InetSocketAddress
-import java.net.Proxy
 import java.util.concurrent.TimeUnit
+
+/**
+ * 检查更新用的 GitHub 加速前缀（把原始 URL 拼在前缀后面：`<prefix>https://github.com/...`）。
+ *
+ * 默认用 [GHFAST]；其余三个作为「可替换」选项放在设置里，供某些网络环境下换一条线路。
+ * 无论选了哪个，真正请求时都会「选中项 → 其余前缀 → 直连」依次降级，避免单点失效。
+ */
+enum class GithubAccel(val label: String, val prefix: String) {
+    GHFAST("ghfast.top（默认）", "https://ghfast.top/"),
+    GHPROXY("gh-proxy.com", "https://gh-proxy.com/"),
+    GHPROXY_NET("ghproxy.net", "https://ghproxy.net/"),
+    DDLC("gh.ddlc.top", "https://gh.ddlc.top/"),
+    ;
+
+    companion object {
+        val DEFAULT = GHFAST
+
+        /** 按前缀找枚举；找不到（老存档 / 空值）回落到默认。 */
+        fun of(prefix: String): GithubAccel =
+            entries.firstOrNull { it.prefix == prefix.trim() } ?: DEFAULT
+    }
+}
 
 /** A GitHub release resolved to the one APK asset that fits this device's ABI. */
 data class AppRelease(
@@ -61,24 +81,28 @@ class UpdateManager(
     val state: StateFlow<UpdateState> = _state.asStateFlow()
 
     /**
-     * 更新用的代理地址（`127.0.0.1:7890` / `socks5://host:1080`），空 = 直连。
-     * 由 [com.baogemusic.tv.di.AppContainer] 跟随设置同步；大陆网络查 GitHub 基本都要靠它。
+     * 当前选中的 GitHub 加速前缀（见 [GithubAccel]）。由
+     * [com.baogemusic.tv.di.AppContainer] 跟随设置同步；空 = 只直连。
      */
     @Volatile
-    var proxySpec: String = ""
+    var accel: String = GithubAccel.DEFAULT.prefix
 
-    /** 带代理的客户端；没配代理就是共享客户端。 */
-    private fun client(): OkHttpClient =
-        parseProxy(proxySpec)?.let { http.newBuilder().proxy(it).build() } ?: http
+    /**
+     * 依次尝试的加速前缀：选中的那个排第一，其余兜底，最后直连（空前缀）。
+     * 这样即使某条加速线路挂掉，检查与下载也不会整条链路失败。
+     */
+    private fun accelChain(): List<String> {
+        val picked = GithubAccel.of(accel)
+        val others = GithubAccel.entries.filter { it != picked }.map { it.prefix }
+        return listOf(picked.prefix) + others + ""
+    }
 
-    /** Query GitHub for the latest release and compare against the installed version. Tries the
-     *  official api.github.com first, then GitHub proxies (for mainland China where the official
-     *  host is often blocked). */
+    /** Query GitHub for the latest release and compare against the installed version. Goes
+     *  through the configured GitHub accelerator first, then the fallbacks, then direct. */
     suspend fun check() {
         _state.value = UpdateState.Checking
         val apiUrl = "https://api.github.com/repos/$OWNER/$REPO/releases/latest"
-        // Official first, then proxies that can front api.github.com JSON.
-        val candidates = listOf(apiUrl) + API_PROXIES.map { it + apiUrl }
+        val candidates = accelChain().map { it + apiUrl }
         _state.value = withContext(Dispatchers.IO) {
             var lastError: String? = null
             for (url in candidates) {
@@ -88,7 +112,7 @@ class UpdateManager(
                         .header("User-Agent", UA)             // GitHub 403s requests without a UA
                         .header("Accept", "application/vnd.github+json")
                         .build()
-                    val body = client().newCall(req).execute().use { resp ->
+                    val body = http.newCall(req).execute().use { resp ->
                         if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
                         resp.body?.string() ?: throw IOException("空响应")
                     }
@@ -113,8 +137,8 @@ class UpdateManager(
     suspend fun download(release: AppRelease) {
         _state.value = UpdateState.Downloading(0f)
         val dest = File(File(appContext.cacheDir, "update"), "baoge-tv-${release.versionName}.apk")
-        // Official first, then proxies.
-        val candidates = listOf(release.apkUrl) + DOWNLOAD_PROXIES.map { it + release.apkUrl }
+        // 走配置的 GitHub 加速前缀（选中项 → 其余 → 直连）。
+        val candidates = accelChain().map { it + release.apkUrl }
         _state.value = withContext(Dispatchers.IO) {
             var lastError: String? = null
             for ((idx, url) in candidates.withIndex()) {
@@ -192,7 +216,7 @@ class UpdateManager(
     private fun downloadTo(url: String, dest: File, onProgress: (Float) -> Unit) {
         // Dedicated client: the shared one has a 25s callTimeout that would kill a big APK on
         // slow TV Wi-Fi. No call timeout here, generous read timeout instead.
-        val client = client().newBuilder()
+        val client = http.newBuilder()
             .callTimeout(0, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .build()
@@ -233,54 +257,6 @@ class UpdateManager(
         private const val OWNER = "veacon"
         private const val REPO = "baomusic.tv"
         private const val UA = "baoge-tv-updater"
-
-        // GitHub 加速镜像前缀（大陆直连 github.com / api.github.com 经常超时）。用法是把原始
-        // URL 拼在前缀后面："<proxy>/https://github.com/..."。按顺序逐个尝试，前一个失败自动落到
-        // 下一个，全失败才报错 —— 所以这里可以放心多放几个。
-        //
-        // DOWNLOAD_PROXIES 用于 release 二进制（APK）下载；
-        // API_PROXIES 用于 api.github.com 的 JSON（能代理 API 的镜像比较少，只放确认可用的）。
-        private val DOWNLOAD_PROXIES = listOf(
-            "https://gh-proxy.com/",
-            "https://ghfast.top/",
-            "https://ghproxy.net/",
-            "https://gh.ddlc.top/",
-        )
-        private val API_PROXIES = listOf(
-            "https://gh-proxy.com/",
-            "https://ghfast.top/",
-        )
-
-        /**
-         * 解析用户填的代理地址。支持这几种写法：
-         *  - `127.0.0.1:7890`        → HTTP 代理
-         *  - `http://host:8080`      → HTTP 代理
-         *  - `socks5://host:1080`    → SOCKS 代理
-         *  - `user:pass@host:8080`   → 忽略账号密码部分（OkHttp 需要 Authenticator，这里不处理）
-         * 端口缺省时按 7890（HTTP）/ 1080（SOCKS）处理；解析不出来返回 null（= 直连）。
-         */
-        fun parseProxy(spec: String): Proxy? {
-            val trimmed = spec.trim()
-            if (trimmed.isEmpty()) return null
-            val isSocks = trimmed.startsWith("socks", ignoreCase = true)
-            val body = trimmed.substringAfter("://", trimmed).substringAfter('@')
-            if (body.isEmpty()) return null
-            val host: String
-            val portText: String
-            if (body.startsWith("[")) {
-                // IPv6 字面量：[::1]:7890
-                host = body.substringAfter('[').substringBefore(']')
-                portText = body.substringAfter("]:", "")
-            } else {
-                host = body.substringBefore(':')
-                portText = body.substringAfter(':', "")
-            }
-            if (host.isBlank()) return null
-            val port = portText.toIntOrNull()?.takeIf { it in 1..65535 }
-                ?: if (isSocks) 1080 else 7890
-            val type = if (isSocks) Proxy.Type.SOCKS else Proxy.Type.HTTP
-            return runCatching { Proxy(type, InetSocketAddress(host, port)) }.getOrNull()
-        }
 
         /** Dotted numeric compare: "1.3.10" > "1.3.2". Non-numeric parts count as 0. */
         fun isNewer(remote: String, current: String): Boolean {
