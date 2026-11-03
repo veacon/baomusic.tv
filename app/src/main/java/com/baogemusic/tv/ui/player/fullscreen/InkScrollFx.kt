@@ -50,9 +50,11 @@ import kotlin.math.sin
 /**
  * 方案 A《墨卷 Ink Scroll》—— 竖排手卷 · 逐字落墨。
  *
- * 排版：竖排、自右向左（传统手卷）。当前句在右侧（大字），已写过的句子以淡墨留在左边，
- * 未来句留白。逐字不是「颜色扫过」，而是**落笔**：字从淡到浓、微微缩放，字心洇开一圈墨晕；
- * 一句唱完整列向左「沉入纸面」。背景是宣纸纹（不用封面实拍图），封面只以朱砂方章落在左下角。
+ * 排版：竖排，**统一从左往右读**。当前句的最后一列贴住右边距，已唱过的句子全部保留、
+ * 依次排在左边，一直到屏幕放不下才出画；一句太长、一列装不下时，剩下的部分作为「续列」
+ * 排在它的**右边**（不是左边），所以从旧到新、从句首到句尾，方向始终一致。
+ * 逐字不是「颜色扫过」，而是**落笔**：字从淡到浓、微微缩放，字心洇开一圈墨晕。
+ * 背景是宣纸纹（不用封面实拍图），封面只以朱砂方章落在左下角。
  *
  * 全部动效都由播放位置推导（落笔进度 = 现在 − 该字起始时间），所以天然与音频同步，
  * 也不需要维护动画状态；逐帧量只在绘制阶段读取，不触发重组。
@@ -103,7 +105,8 @@ fun InkScrollFx(
         val maxFont = max(minFont, userPx * 1.7f)
         val fontPx = (hPx * 0.052f).coerceIn(minFont, maxFont)
         val histFontPx = fontPx * 0.82f
-        val charH = fontPx * 1.28f
+        // 字距（竖排 = 行内字与字的垂直间距）：用户反馈偏拥挤，1.28 → 1.46 字高。
+        val charH = fontPx * 1.46f
         val padH = wPx * 0.055f
         val padV = hPx * 0.10f
         val contentH = (hPx - padV * 2f).coerceAtLeast(fontPx * 4f)
@@ -112,13 +115,17 @@ fun InkScrollFx(
         // 列间距：用户反馈两列太挤 —— 由 1.32 倍字宽放宽到 1.85 倍，两组之间再留一道空隙。
         val slotCur = fontPx * 1.85f
         val slotHist = histFontPx * 1.85f
-        val groupGap = fontPx * 0.55f
+        // 句子之间的空隙（比列距更宽），用来区分「同一句的续列」和「下一句」。
+        val groupGap = fontPx * 0.85f
+        // 译文夹注：竖排小字，单独占一列（宽度很窄），排在一句的左侧。
+        val transSlot = fontPx * 0.72f
+        val transStep = fontPx * 0.42f * 1.32f
 
         val curStyle = TextStyle(
             fontSize = fontPx.sp,
             fontFamily = fontFamily,
             fontWeight = FontWeight.Medium,
-            letterSpacing = 0.06.em,
+            letterSpacing = 0.10.em,
         )
         val histStyle = curStyle.copy(fontSize = histFontPx.sp)
         val transStyle = curStyle.copy(fontSize = (fontPx * 0.42f).sp, fontWeight = FontWeight.Normal)
@@ -127,6 +134,8 @@ fun InkScrollFx(
         val speckles = remember { speckleField() }
         // 每句的逐字时间片缓存：切歌时重算一次，绘制阶段直接取。
         val charCache = remember(lyrics) { HashMap<Int, List<InkChar>>() }
+        // 换行时整卷左移的缓动（只在绘制阶段读，不触发重组）。
+        val slide = remember { InkSlide() }
         // 绘制异常只记一次日志，避免逐帧刷屏。
         var reportedError = false
 
@@ -171,123 +180,137 @@ fun InkScrollFx(
                 )
             }
 
-            // ---- 列排布：从右往左 -----------------------------------------------------------
-            val slots = ArrayList<InkSlot>(8)
-            var cursorX = size.width - padH
-            val focusCols = splitColumns(charCache, lyrics, active, charsPerCol)
-            for (c in focusCols) {
-                if (cursorX - fontPx * 0.5f < 0f) break
-                slots += InkSlot(c, cursorX - fontPx * 0.5f, isFocus = true)
-                cursorX -= slotCur
+            // ---- 列排布：统一「从左往右」读 ------------------------------------------------
+            // 当前句的最后一列贴住右边距；同一句被拆成多列时，**续列排在右边**（而不是左边），
+            // 于是整卷的阅读方向始终一致：从旧到新、从句首到句尾，一律从左往右。
+            // 已经唱过的句子全部保留（不再淡出消失），一路向左排，直到完全出屏才不再绘制。
+            val curCols = splitColumns(charCache, lyrics, active, charsPerCol)
+            if (curCols.isEmpty()) return
+            val curTrans = if (showTranslation) {
+                lyrics.getOrNull(active)?.translation?.takeIf { it.isNotBlank() }
+            } else {
+                null
             }
-            // 当前句与历史句之间再让开一道空隙
-            cursorX -= groupGap
-            var li = active - 1
-            var dist = 1
-            while (li >= 0 && dist <= 3) {
-                val cols = splitColumns(charCache, lyrics, li, charsPerCol)
-                for (c in cols) {
-                    if (cursorX - histFontPx * 0.5f < padH * 0.5f) break
-                    slots += InkSlot(c, cursorX - histFontPx * 0.5f, isFocus = false, dist = dist)
-                    cursorX -= slotHist
+            // 换行时整卷左移：先把旧内容留在原位，再用 420ms 推到位（新句从右边缘滑进来）。
+            val curWidth = curCols.size * slotCur + (if (curTrans != null) transSlot else 0f) + groupGap
+            slide.update(active, beat.floatValue, curWidth)
+            var x = size.width - padH + slide.offset(beat.floatValue)
+
+            /** 夹注：竖排小字（译文），整列画在一句的左侧，不会压到正文列。 */
+            fun drawTransColumn(text: String, cx: Float, mul: Float) {
+                val step = transStep
+                val maxChars = floor((size.height - padV * 0.5f) / step).toInt().coerceAtLeast(1)
+                val shown = if (text.length > maxChars) text.take(maxChars - 1) + "…" else text
+                val top = (size.height - shown.length * step) / 2f
+                var i = 0
+                var k = 0
+                while (i < shown.length) {
+                    val cp = shown.codePointAt(i)
+                    val s = String(Character.toChars(cp))
+                    val l = measurer.measure(s, transStyle)
+                    drawText(
+                        textLayoutResult = l,
+                        topLeft = Offset(cx - l.size.width / 2f, top + k * step),
+                        color = ink,
+                        alpha = 0.52f * mul,
+                    )
+                    i += Character.charCount(cp)
+                    k++
                 }
-                li--
-                dist++
             }
 
-            // ---- 逐列逐字绘制 --------------------------------------------------------------
-            for (slot in slots) {
-                val lineIndex = slot.chars.firstOrNull()?.lineIndex ?: continue
-                val line = lyrics.getOrNull(lineIndex) ?: continue
-                val style = if (slot.isFocus) curStyle else histStyle
-                val step = if (slot.isFocus) charH else charH * 0.82f
-                val colTop = (size.height - slot.chars.size * step) / 2f
+            var li = active
+            while (li >= 0) {
+                val line = lyrics.getOrNull(li) ?: break
+                val cols = if (li == active) curCols
+                else splitColumns(charCache, lyrics, li, charsPerCol)
+                val isCur = li == active
+                val slot = if (isCur) slotCur else slotHist
+                val style = if (isCur) curStyle else histStyle
+                val step = if (isCur) charH else charH * 0.82f
+                val alphaMul = if (isCur) 1f else 0.52f
 
-                // 整列的淡出与「沉纸」位移
-                var alphaMul = if (slot.isFocus) {
-                    1f
-                } else {
-                    when (slot.dist) {
-                        1 -> 0.52f
-                        2 -> 0.40f
-                        else -> 0.30f
-                    }
-                }
-                var xShift = 0f
-                if (slot.dist == 1) {
-                    val lineEnd = lineEndMs(lyrics, lineIndex)
-                    val sink = ((now - (lineEnd + 400)) / 600f).coerceIn(0f, 1f)
-                    if (sink < 1f) {
-                        alphaMul = 1f - (1f - 0.52f) * sink
-                        xShift = -12f * sink
-                    }
-                }
+                for (ci in cols.indices.reversed()) {
+                    val cx = x - slot / 2f
+                    // 这一列已经整列落在屏幕左侧之外：再往左只会更远，直接收工。
+                    if (cx + slot / 2f < 0f) return
 
-                val x0 = slot.x + xShift
-                slot.chars.forEachIndexed { ci, ch ->
-                    val age = now - ch.startMs
-                    val written = age >= 0
-                    val p = if (written) (age / 180f).coerceIn(0f, 1f) else 0f
-                    val ease = p * p * (3f - 2f * p)
-                    // 未写 = 极淡的「预告」；写的过程 = 落笔（淡 → 浓，缩放 0.86 → 1）
-                    val baseAlpha = if (!written) 0.16f else 0.16f + 0.84f * ease
-                    val scale = if (!written) 1f else 0.86f + 0.14f * ease
-                    // 拖腔：单字唱超过 1.2 秒时轻微呼吸
-                    val hold = (ch.endMs - ch.startMs) >= 1200L && written && age <= (ch.endMs - ch.startMs)
-                    val breathe = if (hold) 1f + 0.04f * sin(beat.floatValue * 2f * PI.toFloat() * 1.2f) else 1f
-                    val alpha = (baseAlpha * alphaMul).coerceIn(0f, 1f)
-                    if (alpha <= 0.01f) return@forEachIndexed
+                    val chars = cols[ci].chars
+                    val colTop = (size.height - chars.size * step) / 2f
 
-                    val cy = colTop + ci * step
-                    val layout: TextLayoutResult = measurer.measure(ch.ch, style)
-                    val w = layout.size.width
-                    val h = layout.size.height
-                    val center = Offset(x0, cy + h * 0.5f)
+                    for (k in chars.indices) {
+                        val ch = chars[k]
+                        val age = now - ch.startMs
+                        val written = age >= 0
+                        val p = if (written) (age / 180f).coerceIn(0f, 1f) else 0f
+                        val ease = p * p * (3f - 2f * p)
+                        // 未写 = 极淡的「预告」；写的过程 = 落笔（淡 → 浓，缩放 0.86 → 1）
+                        val baseAlpha = if (!written) 0.16f else 0.16f + 0.84f * ease
+                        val scale = if (!written) 1f else 0.86f + 0.14f * ease
+                        // 拖腔：单字唱超过 1.2 秒时轻微呼吸
+                        val hold = (ch.endMs - ch.startMs) >= 1200L && written &&
+                            age <= (ch.endMs - ch.startMs)
+                        val breathe = if (hold) {
+                            1f + 0.04f * sin(beat.floatValue * 2f * PI.toFloat() * 1.2f)
+                        } else {
+                            1f
+                        }
+                        val alpha = (baseAlpha * alphaMul).coerceIn(0f, 1f)
+                        if (alpha <= 0.01f) continue
 
-                    // 墨晕：刚落笔的字，字心扩散一圈淡墨（半径必须 > 0）
-                    if (written && age < 300L) {
-                        val t = age / 300f
-                        val r = fontPx * 1.4f * t
-                        if (r > 0.8f) {
-                            drawCircle(
-                                brush = Brush.radialGradient(
-                                    listOf(ink.copy(alpha = 0.42f * (1f - t)), Color.Transparent),
-                                    center = center,
+                        val cy = colTop + k * step
+                        val layout: TextLayoutResult = measurer.measure(ch.ch, style)
+                        val w = layout.size.width
+                        val h = layout.size.height
+                        val center = Offset(cx, cy + h * 0.5f)
+
+                        // 墨晕：刚落笔的字，字心扩散一圈淡墨（半径必须 > 0）
+                        if (written && age < 300L) {
+                            val t = age / 300f
+                            val r = fontPx * 1.4f * t
+                            if (r > 0.8f) {
+                                drawCircle(
+                                    brush = Brush.radialGradient(
+                                        listOf(ink.copy(alpha = 0.42f * (1f - t)), Color.Transparent),
+                                        center = center,
+                                        radius = r,
+                                    ),
                                     radius = r,
-                                ),
-                                radius = r,
-                                center = center,
+                                    center = center,
+                                )
+                            }
+                        }
+
+                        withTransform({
+                            translate(center.x, center.y)
+                            scale(scale * breathe, scale * breathe)
+                            translate(-center.x, -center.y)
+                        }) {
+                            drawText(
+                                textLayoutResult = layout,
+                                topLeft = Offset(cx - w / 2f, cy),
+                                color = ink,
+                                alpha = alpha,
                             )
                         }
                     }
 
-                    withTransform({
-                        translate(center.x, center.y)
-                        scale(scale * breathe, scale * breathe)
-                        translate(-center.x, -center.y)
-                    }) {
-                        drawText(
-                            textLayoutResult = layout,
-                            topLeft = Offset(x0 - w / 2f, cy),
-                            color = ink,
-                            alpha = alpha,
-                        )
-                    }
+                    x -= slot
                 }
 
-                // 译文：竖排「夹注」小字，贴在原文列右侧半字宽处
+                // 译文夹注排在这一句所有列的左侧（左行读，注在文前，不与续列打架）
                 if (showTranslation) {
                     val tr = line.translation?.takeIf { it.isNotBlank() }
                     if (tr != null) {
-                        val tl = measurer.measure(tr, transStyle)
-                        drawText(
-                            textLayoutResult = tl,
-                            topLeft = Offset(x0 + fontPx * 0.62f, colTop),
-                            color = ink,
-                            alpha = 0.42f * alphaMul,
-                        )
+                        val tx = x - transSlot / 2f
+                        if (tx + transSlot / 2f >= 0f) drawTransColumn(tr, tx, alphaMul)
+                        x -= transSlot
                     }
                 }
+
+                // 句子之间让开一道比列距更宽的空隙，避免「续列」与「下一句」混淆
+                x -= groupGap
+                li--
             }
         }
 
@@ -344,14 +367,39 @@ private class InkChar(
 /** 一列（竖排的一串字）。 */
 private class InkColumn(val chars: List<InkChar>)
 
-/** 列在画面上的位置与状态。 */
-private class InkSlot(
-    val column: InkColumn,
-    val x: Float,
-    val isFocus: Boolean,
-    val dist: Int = 0,
-) {
-    val chars: List<InkChar> get() = column.chars
+/**
+ * 换行时的「整卷左移」缓动。
+ *
+ * 每句切换那一刻，新句的列数是已知的（curCols.size * slot + gap），于是可以把旧内容先留在原地、
+ * 再在 [DURATION] 毫秒内推到新位置 —— 视觉上就是新的一句从右边缘滑进来，整卷向左走一格。
+ * 时间基准用墙钟（[beat]），暂停时也不会卡在半路；跳转（seek / 换歌）时直接定位，不滑。
+ */
+private class InkSlide {
+    private var lastActive = Int.MIN_VALUE
+    private var fromSec = 0f
+    private var width = 0f
+
+    fun update(active: Int, nowSec: Float, newWidth: Float) {
+        if (active != lastActive) {
+            // 不是「上一句 → 下一句」的自然推进（首帧 / 跳转 / 换歌）就直接落位。
+            val natural = active == lastActive + 1
+            fromSec = if (natural) nowSec else nowSec - DURATION
+            width = if (natural) newWidth else 0f
+            lastActive = active
+        }
+    }
+
+    /** 还需要往右偏移多少像素：从 [width] 衰减到 0。 */
+    fun offset(nowSec: Float): Float {
+        if (width <= 0.01f) return 0f
+        val p = ((nowSec - fromSec) / DURATION).coerceIn(0f, 1f)
+        val ease = 1f - (1f - p) * (1f - p)   // easeOutQuad
+        return width * (1f - ease)
+    }
+
+    private companion object {
+        const val DURATION = 0.42f             // 秒
+    }
 }
 
 /** 取某一句的逐字时间片：优先用真音节，没有就按标点权重估算。结果缓存复用。 */
@@ -411,14 +459,6 @@ private fun splitColumns(
         i = end
     }
     return cols
-}
-
-/** 某句结束的时间（毫秒）：下一句的起点，没有就用 4 秒兜底。 */
-private fun lineEndMs(lyrics: List<LyricLine>, index: Int): Long {
-    val line = lyrics.getOrNull(index) ?: return 0L
-    val next = lyrics.getOrNull(index + 1)
-    return if (next != null && next.time > line.time) (next.time * 1000).toLong()
-    else (line.time * 1000).toLong() + 4000L
 }
 
 /** 纸面噪点：固定种子，换歌不换纹理（避免每帧重新生成）。 */
